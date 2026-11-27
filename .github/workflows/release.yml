@@ -19,17 +19,19 @@ jobs:
         run: |
           ./build-installer.ps1
 
-      - name: Publish GitHub Release v1.0.10
+      - name: Publish GitHub Release v1.0.11
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.10
-          name: Ki-Downloader v1.0.10
+          tag_name: v1.0.11
+          name: Ki-Downloader v1.0.11
           body: |
-            ### Ki-Downloader v1.0.10
+            ### Ki-Downloader v1.0.11
 
             **Fixes & Improvements:**
-            - Fixed `TrayPopupForm` font path resolution when launched via `Ki-Downloader.ps1` (`_baseDir` instead of `AppDomain.CurrentDomain.BaseDirectory`)
-            - Bundled and loaded **Yekan Bakh (`YekanBakh-Regular.ttf` / `YekanBakh-Bold.ttf`)** via GDI+ `PrivateFontCollection` in the System Tray popup card
+            - Fixed UI click drops and card flickering across download list & Inspector info sheet by diffing DOM children and updating stats in-place instead of rebuilding DOM every 400ms
+            - Fixed Inspector Pause/Resume button status check for Queued/Probing/Merging states
+            - Hardened Pause/Resume cancellation with run generation guards (`_itemRunGen`), request-first abort order, and `Task.WhenAny` socket read cancellation for zero post-pause traffic
+            - Reduced redundant state pushes in `MainWindow` when idle/unchanged
 
             **Install (PowerShell):**
             ```powershell

@@ -95,6 +95,7 @@ namespace KiDownloader
         private bool _allowExit;
         private string _lastClipboardUrl = "";
         private string _pendingQuickAddJson;
+        private string _lastPushedStateJson;
 
         private static readonly Regex UrlExtractRegex = new Regex(
             @"https?://[^\s""'<>\]\)]+",
@@ -708,7 +709,14 @@ namespace KiDownloader
         private void PushStateToUi()
         {
             if (!_uiReady || _webView == null || _webView.CoreWebView2 == null) return;
-            try { SendMessageToUi("state", _engine.GetSnapshotJson()); } catch { }
+            try
+            {
+                string snap = _engine.GetSnapshotJson();
+                if (string.Equals(snap, _lastPushedStateJson, StringComparison.Ordinal)) return;
+                _lastPushedStateJson = snap;
+                SendMessageToUi("state", snap);
+            }
+            catch { }
         }
 
         private void SendResponseToUi(string reqId, object obj)

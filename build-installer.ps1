@@ -46,11 +46,16 @@ Copy-Item "$root\ui\fonts\*" "$stage\ui\fonts\" -Force
 Copy-Item "$root\assets\*" "$stage\assets\" -Force
 Copy-Item "$root\browser-extension\*" "$stage\browser-extension\" -Force -Exclude "icons"
 Copy-Item "$root\browser-extension\icons\*" "$stage\browser-extension\icons\" -Force
+Copy-Item "$root\installer\Install.cmd","$root\installer\Uninstall.cmd" "$stage\" -Force
+
+$portableZip = "$root\dist\Ki-Downloader-Portable.zip"
+if (Test-Path $portableZip) { Remove-Item $portableZip -Force }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $portableZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 
 $payloadZip = "$root\lib\payload.zip"
 if (Test-Path $payloadZip) { Remove-Item $payloadZip -Force }
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $payloadZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+Copy-Item $portableZip $payloadZip -Force
 
 & $csc /nologo /platform:x64 /target:winexe /optimize+ `
     /win32icon:"$root\assets\ki-downloader.ico" `
@@ -62,5 +67,5 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed" }
 Remove-Item $stage -Recurse -Force
 Remove-Item $payloadZip -Force
-Write-Output "Built installer: $root\dist\Ki-Downloader-Setup.exe"
-Get-Item "$root\dist\Ki-Downloader-Setup.exe", "$root\dist\Ki-Downloader-Extension.zip" | Select-Object Name, Length
+Write-Output "Built packages:"
+Get-Item "$root\dist\Ki-Downloader-Portable.zip", "$root\dist\Ki-Downloader-Setup.exe", "$root\dist\Ki-Downloader-Extension.zip" | Select-Object Name, Length

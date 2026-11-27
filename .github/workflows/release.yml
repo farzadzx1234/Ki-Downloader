@@ -14,18 +14,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Ki-Downloader and Windows Installer
+      - name: Build Ki-Downloader Packages
         shell: powershell
         run: |
           ./build-installer.ps1
 
-      - name: Publish GitHub Release v1.0.0
+      - name: Publish GitHub Release v1.0.1
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: Ki-Downloader v1.0.0
+          tag_name: v1.0.1
+          name: Ki-Downloader v1.0.1
           body: |
-            ### Ki-Downloader v1.0.0
+            ### Ki-Downloader v1.0.1
+
+            **Recommended Install (No SmartScreen / Unknown Publisher warning):**
+            Run in PowerShell:
+            ```powershell
+            irm https://raw.githubusercontent.com/farzadzx1234/Ki-Downloader/main/install.ps1 | iex
+            ```
+            Or download **`Ki-Downloader-Portable.zip`**, extract it, and run **`Install.cmd`** (or launch `Ki-Downloader.exe` directly).
+
             - Multi-stream parallel HTTP/HTTPS download engine (up to 32 sections)
             - Resilient disconnect recovery, stall watchdog, and dynamic work-stealing
             - Liquid Glass UI with Light & Dark themes, spring physics, and FA/EN RTL/LTR support
@@ -33,5 +41,6 @@ jobs:
             - Global & per-download speed limiter + Night Scheduler
             - Standalone Chrome/Edge Browser Extension (`Ki-Downloader-Extension.zip`)
           files: |
-            dist/Ki-Downloader-Setup.exe
+            dist/Ki-Downloader-Portable.zip
             dist/Ki-Downloader-Extension.zip
+            dist/Ki-Downloader-Setup.exe

@@ -11,6 +11,27 @@
 
 ---
 
+## Installation
+
+### Option 1: One-Line PowerShell Install (Recommended — No SmartScreen Prompt)
+Open **PowerShell** on Windows 10/11 and run:
+
+```powershell
+irm https://raw.githubusercontent.com/farzadzx1234/Ki-Downloader/main/install.ps1 | iex
+```
+
+This downloads the latest package, unblocks files automatically, installs to `%LocalAppData%\Programs\Ki-Downloader`, creates Start Menu & Desktop shortcuts, and launches Ki-Downloader.
+
+### Option 2: Portable ZIP (Recommended Manual Download)
+1. Download **`Ki-Downloader-Portable.zip`** from the [Releases](../../releases) page.
+2. Extract the ZIP folder and either run **`Install.cmd`** (creates shortcuts) or open **`Ki-Downloader.exe`** directly.
+
+### Option 3: Standalone Browser Extension (Chrome / Edge)
+1. Download **`Ki-Downloader-Extension.zip`** from [Releases](../../releases) (or open the `browser-extension` folder from Settings).
+2. Extract it, open `chrome://extensions` or `edge://extensions`, turn on **Developer mode**, and click **Load unpacked**.
+
+---
+
 ## Features
 
 - **Parallel Multi-Stream Engine (Up to 32 Sections):** Splits files into concurrent byte-range segments with dynamic work-stealing and automatic stall watchdog so slow connections never stall at 99%.
@@ -20,12 +41,6 @@
 - **Proxy Profile Manager & DoH:** Save and switch between **SOCKS5** (e.g. v2rayN/Nekoray), **HTTP/HTTPS** (Clash), System Proxy, or Direct, with built-in latency/exit-IP testing and optional **DNS-over-HTTPS (DoH)**.
 - **Speed Limiter & Night Scheduler:** Cap global or per-download bandwidth (`KB/s`) and schedule automatic night downloads with Sleep/Shutdown post-actions.
 - **Batch & Pattern Grabber:** Expand numbered URL ranges (`https://example.com/part-[01-12].rar`) or extract links from pasted text.
-- **Standalone Browser Extension:** Chrome/Edge Manifest V3 extension (`browser-extension/`) with automatic download interception, right-click menu, and one-click page link grabbing.
-
-## Installation
-
-1. Download **`Ki-Downloader-Setup.exe`** from the [Releases](../../releases) page and run it.
-2. *(Optional)* For browser integration, download **`Ki-Downloader-Extension.zip`** (or open the `browser-extension` folder from Settings), extract it, enable **Developer mode** in `chrome://extensions` or `edge://extensions`, and click **Load unpacked**.
 
 ## Building from Source (Windows)
 
@@ -34,8 +49,6 @@ Requires Windows 10/11 (Edge WebView2 Runtime + built-in .NET Framework 4.8 `csc
 ```powershell
 powershell -ExecutionPolicy Bypass -File build-installer.ps1
 ```
-
-This compiles `Ki-Downloader.exe` and packages `dist\Ki-Downloader-Setup.exe` + `dist\Ki-Downloader-Extension.zip`.
 
 ## License
 

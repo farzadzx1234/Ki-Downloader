@@ -14,7 +14,7 @@ namespace KiDownloader
 {
     public class DownloadEngine : IDisposable
     {
-        public const string AppVersion = "1.0.8";
+        public const string AppVersion = "1.0.9";
         private readonly string _dataDir;
         private readonly string _statePath;
         private readonly object _stateLock = new object();

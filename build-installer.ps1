@@ -20,6 +20,13 @@ if (!(Test-Path "$root\ui\fonts\YekanBakh-VF.woff2") -and !(Test-Path "$root\ui\
     $vUrl = "https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/webfonts/Vazirmatn[wght].woff2"
     Invoke-WebRequest -Uri $vUrl -OutFile "$root\ui\fonts\Vazirmatn-VF.woff2" -UseBasicParsing
 }
+New-Item -ItemType Directory -Force -Path "$root\assets" | Out-Null
+if (!(Test-Path "$root\assets\Vazirmatn-Regular.ttf")) {
+    Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/ttf/Vazirmatn-Regular.ttf" -OutFile "$root\assets\Vazirmatn-Regular.ttf" -UseBasicParsing
+}
+if (!(Test-Path "$root\assets\Vazirmatn-Bold.ttf")) {
+    Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/ttf/Vazirmatn-Bold.ttf" -OutFile "$root\assets\Vazirmatn-Bold.ttf" -UseBasicParsing
+}
 
 New-Item -ItemType Directory -Force -Path "$root\browser-extension\icons","$root\dist" | Out-Null
 if (!(Test-Path "$root\browser-extension\icons\icon128.png")) {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -31,11 +32,14 @@ namespace KiDownloader
         private bool _headerHover;
         private Rectangle _headerRect;
 
+        private static PrivateFontCollection _pfc;
+        private static FontFamily _uiFontFamily;
+        private static bool _fontLoadAttempted;
+
         private sealed class RowDef
         {
             public string Id;
             public string Label;
-            public string Shortcut;
             public string IconKind;
             public bool IsSeparator;
             public bool IsDanger;
@@ -43,6 +47,33 @@ namespace KiDownloader
             public bool ToggleValue;
             public Rectangle Bounds;
             public Action OnClick;
+        }
+
+        private static Font CreateUiFont(float size, FontStyle style)
+        {
+            if (!_fontLoadAttempted)
+            {
+                _fontLoadAttempted = true;
+                try
+                {
+                    string assetsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets");
+                    string reg = Path.Combine(assetsDir, "Vazirmatn-Regular.ttf");
+                    string bold = Path.Combine(assetsDir, "Vazirmatn-Bold.ttf");
+                    if (File.Exists(reg) || File.Exists(bold))
+                    {
+                        _pfc = new PrivateFontCollection();
+                        if (File.Exists(reg)) _pfc.AddFontFile(reg);
+                        if (File.Exists(bold)) _pfc.AddFontFile(bold);
+                        if (_pfc.Families.Length > 0) _uiFontFamily = _pfc.Families[0];
+                    }
+                }
+                catch { }
+            }
+            if (_uiFontFamily != null)
+            {
+                try { return new Font(_uiFontFamily, size, style); } catch { }
+            }
+            return new Font("Segoe UI", size, style);
         }
 
         public TrayPopupForm(
@@ -362,8 +393,8 @@ namespace KiDownloader
                     : string.Format("Ready • v{0}", DownloadEngine.AppVersion);
             }
 
-            using (Font titleFont = new Font("Segoe UI", 10.5f, FontStyle.Bold))
-            using (Font subFont = new Font("Segoe UI", 8.5f, FontStyle.Regular))
+            using (Font titleFont = CreateUiFont(10.5f, FontStyle.Bold))
+            using (Font subFont = CreateUiFont(8.5f, FontStyle.Regular))
             using (SolidBrush titleBrush = new SolidBrush(textPrimary))
             using (SolidBrush subBrush = new SolidBrush(textMuted))
             using (SolidBrush dotBrush = new SolidBrush(dotColor))
@@ -374,13 +405,17 @@ namespace KiDownloader
                     StringFormat sfR = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
                     g.DrawString("Ki-Downloader", titleFont, titleBrush, titleRect, sfR);
 
-                    SizeF subSize = g.MeasureString(statusText, subFont);
                     float dotX = logoX - 18;
                     float dotY = _headerRect.Top + 37;
                     g.FillEllipse(dotBrush, dotX, dotY, 7f, 7f);
 
+                    StringFormat sfRtl = new StringFormat(StringFormatFlags.DirectionRightToLeft)
+                    {
+                        Alignment = StringAlignment.Near,
+                        LineAlignment = StringAlignment.Center
+                    };
                     RectangleF subRect = new RectangleF(_headerRect.Left + 28, _headerRect.Top + 31, (dotX - 6) - (_headerRect.Left + 28), 18);
-                    g.DrawString(statusText, subFont, subBrush, subRect, sfR);
+                    g.DrawString(statusText, subFont, subBrush, subRect, sfRtl);
 
                     DrawChevron(g, _headerRect.Left + 14, _headerRect.Top + _headerRect.Height / 2f, true, textMuted);
                 }
@@ -408,7 +443,7 @@ namespace KiDownloader
             }
 
             // Menu rows
-            using (Font rowFont = new Font("Segoe UI", 9.5f, FontStyle.Regular))
+            using (Font rowFont = CreateUiFont(9.5f, FontStyle.Regular))
             {
                 for (int i = 0; i < _rows.Count; i++)
                 {

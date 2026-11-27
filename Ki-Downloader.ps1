@@ -41,6 +41,7 @@ try {
         (Join-Path $root "src\NetworkHelper.cs"),
         (Join-Path $root "src\DownloadEngine.cs"),
         (Join-Path $root "src\IpcServer.cs"),
+        (Join-Path $root "src\TrayPopupForm.cs"),
         (Join-Path $root "src\MainWindow.cs")
     )
     $refs = @(

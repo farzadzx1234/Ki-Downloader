@@ -50,6 +50,7 @@ $srcFiles = @(
     "$root\src\NetworkHelper.cs",
     "$root\src\DownloadEngine.cs",
     "$root\src\IpcServer.cs",
+    "$root\src\TrayPopupForm.cs",
     "$root\src\MainWindow.cs"
 )
 

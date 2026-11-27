@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="iconBg" x1="15%" y1="0%" x2="85%" y2="100%">
+      <stop offset="0%" stop-color="#1A8CFF"/>
+      <stop offset="52%" stop-color="#005CE6"/>
+      <stop offset="100%" stop-color="#0A1E5E"/>
+    </linearGradient>
+    <radialGradient id="iconSheen" cx="30%" cy="15%" r="65%">
+      <stop offset="0%" stop-color="#80D4FF" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#005CE6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="markTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#DCEEFF"/>
+    </linearGradient>
+    <linearGradient id="markGlass" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.58"/>
+      <stop offset="100%" stop-color="#8FD4FF" stop-opacity="0.28"/>
+    </linearGradient>
+    <clipPath id="squircleClip">
+      <rect x="20" y="20" width="472" height="472" rx="108" ry="108"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#squircleClip)">
+    <rect x="20" y="20" width="472" height="472" fill="url(#iconBg)"/>
+    <rect x="20" y="20" width="472" height="472" fill="url(#iconSheen)"/>
+
+    <!-- Subtle concentric inner glass rim -->
+    <rect x="22" y="22" width="468" height="468" rx="106" ry="106"
+          fill="none" stroke="#FFFFFF" stroke-opacity="0.24" stroke-width="3"/>
+
+    <!-- Translucent lower chevron wing (depth layer) -->
+    <path d="M168 232 C156 220 156 200 168 188 C180 176 200 176 212 188 L256 232 L300 188 C312 176 332 176 344 188 C356 200 356 220 344 232 L278 298 C266 310 246 310 234 298 Z"
+          fill="url(#markGlass)"/>
+
+    <!-- Primary crisp folded droplet/arrow mark -->
+    <path d="M256 122 C273 122 287 136 287 153 L287 282 L322 247 C334 235 354 235 366 247 C378 259 378 279 366 291 L278 379 C266 391 246 391 234 379 L146 291 C134 279 134 259 146 247 C158 235 178 235 190 247 L225 282 L225 153 C225 136 239 122 256 122 Z"
+          fill="url(#markTop)"/>
+  </g>
+</svg>

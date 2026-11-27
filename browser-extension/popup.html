@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      width: 290px;
+      margin: 0;
+      padding: 16px;
+      background: #0a0c10;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Google Sans", "Segoe UI", sans-serif;
+    }
+    .head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .head img { width: 30px; height: 30px; border-radius: 8px; }
+    .title { font-size: 14.5px; font-weight: 600; }
+    .status {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+      background: rgba(48, 209, 88, 0.14); color: #30d158; margin-bottom: 12px;
+    }
+    .status.off { background: rgba(255, 69, 58, 0.14); color: #ff453a; }
+    .row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border-radius: 12px; background: #161922; border: 1px solid #262a36;
+      margin-bottom: 10px; font-size: 12.5px;
+    }
+    .btn {
+      width: 100%; padding: 9px 12px; border-radius: 999px; border: none;
+      background: #0a84ff; color: #fff; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; margin-top: 6px;
+    }
+    .btn.sec { background: #1c1f29; border: 1px solid #2c303e; }
+  </style>
+</head>
+<body>
+  <div class="head">
+    <img src="icons/icon48.png" alt="Ki-Downloader" />
+    <div>
+      <div class="title">Ki-Downloader</div>
+      <div style="font-size:11px;color:#8e8e93;">Browser Companion</div>
+    </div>
+  </div>
+  <div id="status" class="status off">Checking...</div>
+  <label class="row">
+    <span>Auto-intercept downloads</span>
+    <input id="autoToggle" type="checkbox" />
+  </label>
+  <button id="grabBtn" class="btn">Grab Downloadable Links on Page</button>
+  <button id="openBtn" class="btn sec">Open Ki-Downloader</button>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -47,6 +47,21 @@ namespace KiDownloader
             public int cyBottomHeight;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NCCALCSIZE_PARAMS
+        {
+            public RECT rgrc0;
+            public RECT rgrc1;
+            public RECT rgrc2;
+            public IntPtr lppos;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left, Top, Right, Bottom;
+        }
+
         private const int WM_CLIPBOARDUPDATE = 0x031D;
         private const int WM_NCCALCSIZE = 0x0083;
         private const int WM_NCHITTEST = 0x0084;
@@ -114,7 +129,8 @@ namespace KiDownloader
             Icon = AppIcons.CreateAppIcon(128);
             UpdateFormColors();
 
-            Padding = new Padding(4);
+            // Subtle 1px edge keeps native resize borders crisp without a thick frame
+            Padding = new Padding(1);
 
             SetupTrayIcon();
             SetupWebView();
@@ -140,6 +156,15 @@ namespace KiDownloader
             bool dark = EffectiveDarkMode();
             BackColor = dark ? Color.Black : Color.White;
             if (_webView != null) _webView.DefaultBackgroundColor = dark ? Color.Black : Color.White;
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (_webView != null && !_webView.Focused)
+            {
+                try { _webView.Focus(); } catch { }
+            }
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -168,13 +193,15 @@ namespace KiDownloader
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-            Padding = WindowState == FormWindowState.Maximized ? new Padding(8) : new Padding(4);
+            Padding = WindowState == FormWindowState.Maximized ? new Padding(6) : new Padding(1);
+            SendMessageToUi("window_state", _json.Serialize(new { maximized = WindowState == FormWindowState.Maximized }));
         }
 
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == WM_NCCALCSIZE && m.WParam != IntPtr.Zero)
             {
+                // Strip standard Windows title bar while keeping native resize/Aero Snap/rounded corners
                 m.Result = IntPtr.Zero;
                 return;
             }
@@ -182,7 +209,7 @@ namespace KiDownloader
             if (m.Msg == WM_NCHITTEST)
             {
                 base.WndProc(ref m);
-                if ((int)m.Result == 1)
+                if ((int)m.Result == 1) // HTCLIENT
                 {
                     Point p = PointToClient(new Point(m.LParam.ToInt32() & 0xFFFF, (m.LParam.ToInt32() >> 16) & 0xFFFF));
                     int grip = 8;
@@ -217,7 +244,7 @@ namespace KiDownloader
                 UpdateFormColors();
                 int dark = EffectiveDarkMode() ? 1 : 0;
                 DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
-                int corner = 2;
+                int corner = 2; // DWMWCP_ROUND
                 DwmSetWindowAttribute(Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
                 MARGINS margins = new MARGINS { cxLeftWidth = 1, cxRightWidth = 1, cyTopHeight = 1, cyBottomHeight = 1 };
                 DwmExtendFrameIntoClientArea(Handle, ref margins);
@@ -303,7 +330,9 @@ namespace KiDownloader
             _webView.CoreWebView2.NavigationCompleted += delegate
             {
                 _uiReady = true;
+                try { _webView.Focus(); } catch { }
                 PushStateToUi();
+                SendMessageToUi("window_state", _json.Serialize(new { maximized = WindowState == FormWindowState.Maximized }));
                 if (!string.IsNullOrEmpty(_pendingQuickAddJson))
                 {
                     SendMessageToUi("quick_add", _pendingQuickAddJson);
@@ -420,13 +449,15 @@ namespace KiDownloader
                     case "get_clipboard_url":
                         {
                             string clipUrl = "";
-                            if (Clipboard.ContainsText())
-                            {
-                                string txt = (Clipboard.GetText() ?? "").Trim();
-                                Match m = UrlExtractRegex.Match(txt);
-                                if (m.Success) clipUrl = m.Value;
-                            }
-                            SendResponseToUi(reqId, new { url = clipUrl });
+                            string rawClip = "";
+                            if (Clipboard.ContainsText(TextDataFormat.UnicodeText))
+                                rawClip = Clipboard.GetText(TextDataFormat.UnicodeText) ?? "";
+                            else if (Clipboard.ContainsText())
+                                rawClip = Clipboard.GetText() ?? "";
+                            rawClip = rawClip.Trim();
+                            Match m = UrlExtractRegex.Match(rawClip);
+                            if (m.Success) clipUrl = m.Value;
+                            SendResponseToUi(reqId, new { url = clipUrl, raw = rawClip });
                         }
                         break;
 

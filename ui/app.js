@@ -193,6 +193,9 @@
   let selectedId = null;
   let inspectorId = null;
   let ndConnections = 16;
+  let ndProbeTimer = null;
+  let ndLastProbedUrl = "";
+  let ndNameCustomized = false;
   const pendingRpc = new Map();
   let rpcCounter = 0;
 
@@ -311,6 +314,7 @@
     renderDownloadList();
   }
 
+  // WebView2 IPC
   function callHost(action, data) {
     if (!window.chrome || !window.chrome.webview) return Promise.resolve(null);
     const reqId = "req_" + (++rpcCounter);
@@ -349,6 +353,9 @@
         showClipboardToast(msg.payload.url);
       } else if (msg.type === "toast" && msg.payload) {
         showToast(lang === "fa" && msg.payload.titleFa ? msg.payload.titleFa : msg.payload.title, msg.payload.message);
+      } else if (msg.type === "window_state" && msg.payload) {
+        const maxBtn = document.getElementById("winMaxBtn");
+        if (maxBtn) maxBtn.classList.toggle("maximized", !!msg.payload.maximized);
       }
     });
   }
@@ -406,6 +413,7 @@
     document.body.classList.toggle("reduce-transparency", !!appState.settings.ReduceTransparency);
   }
 
+  // Sheets + Drag-to-Dismiss
   function openSheet(id) {
     const backdrop = document.getElementById("sheetBackdrop");
     const sheet = document.getElementById(id);
@@ -460,6 +468,7 @@
     });
   }
 
+  // Rendering
   function renderAll() {
     renderHeaderQuickPills();
     renderDownloadList();
@@ -693,26 +702,42 @@
     }
   }
 
+  function extractFirstHttpUrl(text) {
+    if (!text) return "";
+    const m = String(text).trim().match(/https?:\/\/[^\s"'<>\]\)]+/i);
+    return m ? m[0] : "";
+  }
+
   function openNewDownloadWithUrl(url, fileName, referer) {
-    document.getElementById("ndUrl").value = url || "";
+    const cleanUrl = extractFirstHttpUrl(url) || (url || "").trim();
+    ndLastProbedUrl = "";
+    ndNameCustomized = Boolean(fileName && fileName.trim());
+    document.getElementById("ndUrl").value = cleanUrl;
     document.getElementById("ndFileName").value = fileName || "";
     document.getElementById("ndReferer").value = referer || "";
     document.getElementById("ndCategory").value = "Other";
     updateNdFolderForCategory();
     document.getElementById("ndProbeCard").classList.add("hidden");
     openSheet("newDownloadSheet");
-    if (url) probeCurrentUrl();
+    if (cleanUrl) {
+      probeCurrentUrl(true);
+    } else {
+      setTimeout(() => { const u = document.getElementById("ndUrl"); if (u) u.focus(); }, 60);
+    }
   }
 
-  async function probeCurrentUrl() {
+  async function probeCurrentUrl(force) {
     const url = document.getElementById("ndUrl").value.trim();
-    if (!url) return;
+    if (!/^https?:\/\/\S+/i.test(url)) return;
+    if (!force && url === ndLastProbedUrl) return;
+    ndLastProbedUrl = url;
     const card = document.getElementById("ndProbeCard");
     card.classList.remove("hidden");
     card.innerHTML = `<span>${lang === "fa" ? "در حال بررسی لینک و نوع فایل..." : "Probing link & file type..."}</span>`;
     const r = await callHost("probe_url", { url, referer: document.getElementById("ndReferer").value.trim() });
-    if (!r || !r.Success) { card.textContent = (r && r.Error) || "Failed"; return; }
-    if (r.FileName && !document.getElementById("ndFileName").value.trim()) {
+    if (document.getElementById("ndUrl").value.trim() !== url) return;
+    if (!r || !r.Success) { card.textContent = (r && r.Error) || (lang === "fa" ? "خطا در بررسی لینک" : "Failed"); return; }
+    if (r.FileName && !ndNameCustomized) {
       document.getElementById("ndFileName").value = r.FileName;
     }
     if (r.Category) {
@@ -730,6 +755,21 @@
         <span class="probe-tag ${r.SupportsRange ? "ok" : ""}">${r.SupportsRange ? t("resumable") + " ✓" : t("singleStream")}</span>
       </div>
     `;
+  }
+
+  function scheduleAutoProbe(immediate) {
+    if (ndProbeTimer) { clearTimeout(ndProbeTimer); ndProbeTimer = null; }
+    const delay = immediate ? 30 : 420;
+    ndProbeTimer = setTimeout(() => {
+      const urlInput = document.getElementById("ndUrl");
+      if (!urlInput) return;
+      const val = urlInput.value.trim();
+      const extracted = extractFirstHttpUrl(val);
+      if (extracted && extracted !== val) urlInput.value = extracted;
+      if (/^https?:\/\/[^\/\s]+/i.test(urlInput.value.trim())) {
+        probeCurrentUrl(false);
+      }
+    }, delay);
   }
 
   function expandBatchInput(raw) {
@@ -859,6 +899,7 @@
   }
 
   function bindEvents() {
+    // Custom Window Drag & Traffic Lights
     const dragStrip = document.getElementById("windowDragRegion");
     dragStrip.addEventListener("mousedown", (e) => { if (e.button === 0 && e.detail === 1) sendHost("window_drag"); });
     dragStrip.addEventListener("dblclick", () => sendHost("window_maximize"));
@@ -928,6 +969,7 @@
     document.querySelectorAll("[data-close-sheet]").forEach((b) => { b.onclick = () => closeSheet(b.getAttribute("data-close-sheet")); });
     document.getElementById("sheetBackdrop").onclick = () => { document.querySelectorAll(".glass-sheet.open").forEach((s) => closeSheet(s.id)); };
 
+    // New Download Sheet
     document.querySelectorAll(".conn-pill").forEach((b) => {
       b.onclick = () => {
         ndConnections = parseInt(b.getAttribute("data-conn"), 10);
@@ -935,7 +977,21 @@
       };
     });
     document.getElementById("ndCategory").addEventListener("change", updateNdFolderForCategory);
-    document.getElementById("ndProbeBtn").onclick = probeCurrentUrl;
+    document.getElementById("ndFileName").addEventListener("input", () => {
+      ndNameCustomized = Boolean(document.getElementById("ndFileName").value.trim());
+    });
+    const ndUrlEl = document.getElementById("ndUrl");
+    ndUrlEl.addEventListener("input", () => {
+      if (!ndNameCustomized) document.getElementById("ndFileName").value = "";
+      scheduleAutoProbe(false);
+    });
+    ndUrlEl.addEventListener("paste", () => {
+      ndNameCustomized = false;
+      ndLastProbedUrl = "";
+      scheduleAutoProbe(true);
+    });
+    ndUrlEl.addEventListener("change", () => scheduleAutoProbe(true));
+    document.getElementById("ndProbeBtn").onclick = () => probeCurrentUrl(true);
     document.getElementById("ndBrowseBtn").onclick = async () => {
       const r = await callHost("pick_folder");
       if (r && r.folder) document.getElementById("ndFolder").value = r.folder;
@@ -960,6 +1016,7 @@
     document.getElementById("ndStartBtn").onclick = () => submitNd(true);
     document.getElementById("ndAddPausedBtn").onclick = () => submitNd(false);
 
+    // Batch
     document.getElementById("batchParseBtn").onclick = () => {
       const urls = expandBatchInput(document.getElementById("batchInput").value);
       document.getElementById("batchCountLabel").textContent = `${urls.length} links`;
@@ -974,6 +1031,7 @@
       closeSheet("batchSheet");
     };
 
+    // Settings
     document.getElementById("settingsTabs").addEventListener("click", (e) => {
       const btn = e.target.closest(".s-tab");
       if (!btn) return;
@@ -1057,6 +1115,7 @@
       closeSheet("settingsSheet");
     };
 
+    // Drag & Drop URL
     const root = document.getElementById("app");
     root.addEventListener("dragover", (e) => { e.preventDefault(); root.classList.add("drag-over"); });
     root.addEventListener("dragleave", () => root.classList.remove("drag-over"));
@@ -1066,20 +1125,45 @@
       if (url && /^https?:\/\//i.test(url.trim())) openNewDownloadWithUrl(url.trim(), "", "");
     });
 
+    // Global Paste & Shortcuts including Ctrl+V IDM-style Probe & Add (works in both FA and EN keyboard layouts)
+    async function triggerClipboardAdd(fallbackText) {
+      const fromEvent = extractFirstHttpUrl(fallbackText);
+      if (fromEvent) {
+        openNewDownloadWithUrl(fromEvent, "", "");
+        return;
+      }
+      const r = await callHost("get_clipboard_url");
+      const found = (r && r.url) || extractFirstHttpUrl(r && r.raw);
+      if (found) openNewDownloadWithUrl(found, "", "");
+      else showToast(lang === "fa" ? "کلیپ‌بورد" : "Clipboard", lang === "fa" ? "لینک معتبری در کلیپ‌بورد نیست" : "No valid HTTP/HTTPS URL in clipboard");
+    }
+
+    document.addEventListener("paste", (e) => {
+      const tag = (document.activeElement && document.activeElement.tagName) || "";
+      const isEditing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (isEditing) return;
+      const txt = e.clipboardData ? e.clipboardData.getData("text") : "";
+      const u = extractFirstHttpUrl(txt);
+      if (u) {
+        e.preventDefault();
+        openNewDownloadWithUrl(u, "", "");
+      }
+    });
+
     window.addEventListener("keydown", async (e) => {
       const tag = (document.activeElement && document.activeElement.tagName) || "";
       const isEditing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      const code = e.code || "";
+      const key = (e.key || "").toLowerCase();
 
-      if (e.ctrlKey && e.key.toLowerCase() === "v" && !isEditing) {
+      if (e.ctrlKey && (code === "KeyV" || key === "v") && !isEditing) {
         e.preventDefault();
-        const r = await callHost("get_clipboard_url");
-        if (r && r.url) openNewDownloadWithUrl(r.url, "", "");
-        else showToast(lang === "fa" ? "کلیپ‌بورد" : "Clipboard", lang === "fa" ? "لینک معتبری در کلیپ‌بورد نیست" : "No valid HTTP/HTTPS URL in clipboard");
-      } else if (e.ctrlKey && e.key.toLowerCase() === "n") {
+        await triggerClipboardAdd("");
+      } else if (e.ctrlKey && (code === "KeyN" || key === "n")) {
         e.preventDefault(); openNewDownloadWithUrl("", "", "");
-      } else if (e.ctrlKey && e.key.toLowerCase() === "f") {
+      } else if (e.ctrlKey && (code === "KeyF" || key === "f")) {
         e.preventDefault(); orb.classList.add("expanded"); searchInput.focus();
-      } else if (e.ctrlKey && e.key === ",") {
+      } else if (e.ctrlKey && (code === "Comma" || key === ",")) {
         e.preventDefault(); openSettingsTab("general");
       } else if (e.key === "Escape") {
         document.querySelectorAll(".glass-sheet.open").forEach((s) => closeSheet(s.id));

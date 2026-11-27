@@ -311,6 +311,7 @@ namespace KiDownloader
 
             _trayPopup = new TrayPopupForm(
                 _engine,
+                _baseDir,
                 EffectiveDarkMode(),
                 delegate { RestoreWindowFromTray(); },
                 delegate

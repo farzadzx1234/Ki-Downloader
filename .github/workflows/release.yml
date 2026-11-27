@@ -19,17 +19,17 @@ jobs:
         run: |
           ./build-installer.ps1
 
-      - name: Publish GitHub Release v1.0.9
+      - name: Publish GitHub Release v1.0.10
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.9
-          name: Ki-Downloader v1.0.9
+          tag_name: v1.0.10
+          name: Ki-Downloader v1.0.10
           body: |
-            ### Ki-Downloader v1.0.9
+            ### Ki-Downloader v1.0.10
 
             **Fixes & Improvements:**
-            - Bundled Vazirmatn TTF (`Vazirmatn-Regular.ttf` / `Vazirmatn-Bold.ttf`) and loaded via GDI+ `PrivateFontCollection` in `TrayPopupForm` for crisp Persian & English typography
-            - Improved RTL text direction for live tray status badge
+            - Fixed `TrayPopupForm` font path resolution when launched via `Ki-Downloader.ps1` (`_baseDir` instead of `AppDomain.CurrentDomain.BaseDirectory`)
+            - Bundled and loaded **Yekan Bakh (`YekanBakh-Regular.ttf` / `YekanBakh-Bold.ttf`)** via GDI+ `PrivateFontCollection` in the System Tray popup card
 
             **Install (PowerShell):**
             ```powershell

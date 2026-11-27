@@ -20,6 +20,7 @@ namespace KiDownloader
         private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
 
         private readonly DownloadEngine _engine;
+        private readonly string _baseDir;
         private readonly bool _isDark;
         private readonly bool _isFa;
         private readonly Action _onOpenApp;
@@ -34,7 +35,7 @@ namespace KiDownloader
 
         private static PrivateFontCollection _pfc;
         private static FontFamily _uiFontFamily;
-        private static bool _fontLoadAttempted;
+        private static string _fontLoadedDir;
 
         private sealed class RowDef
         {
@@ -49,21 +50,32 @@ namespace KiDownloader
             public Action OnClick;
         }
 
-        private static Font CreateUiFont(float size, FontStyle style)
+        private Font CreateUiFont(float size, FontStyle style)
         {
-            if (!_fontLoadAttempted)
+            if (_uiFontFamily == null && _fontLoadedDir != (_baseDir ?? ""))
             {
-                _fontLoadAttempted = true;
+                _fontLoadedDir = _baseDir ?? "";
                 try
                 {
-                    string assetsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets");
-                    string reg = Path.Combine(assetsDir, "Vazirmatn-Regular.ttf");
-                    string bold = Path.Combine(assetsDir, "Vazirmatn-Bold.ttf");
-                    if (File.Exists(reg) || File.Exists(bold))
+                    string root = !string.IsNullOrEmpty(_baseDir) ? _baseDir : AppDomain.CurrentDomain.BaseDirectory;
+                    string assetsDir = Path.Combine(root, "assets");
+                    string yReg = Path.Combine(assetsDir, "YekanBakh-Regular.ttf");
+                    string yBold = Path.Combine(assetsDir, "YekanBakh-Bold.ttf");
+                    string vReg = Path.Combine(assetsDir, "Vazirmatn-Regular.ttf");
+                    string vBold = Path.Combine(assetsDir, "Vazirmatn-Bold.ttf");
+
+                    if (File.Exists(yReg) || File.Exists(yBold))
                     {
                         _pfc = new PrivateFontCollection();
-                        if (File.Exists(reg)) _pfc.AddFontFile(reg);
-                        if (File.Exists(bold)) _pfc.AddFontFile(bold);
+                        if (File.Exists(yReg)) _pfc.AddFontFile(yReg);
+                        if (File.Exists(yBold)) _pfc.AddFontFile(yBold);
+                        if (_pfc.Families.Length > 0) _uiFontFamily = _pfc.Families[0];
+                    }
+                    else if (File.Exists(vReg) || File.Exists(vBold))
+                    {
+                        _pfc = new PrivateFontCollection();
+                        if (File.Exists(vReg)) _pfc.AddFontFile(vReg);
+                        if (File.Exists(vBold)) _pfc.AddFontFile(vBold);
                         if (_pfc.Families.Length > 0) _uiFontFamily = _pfc.Families[0];
                     }
                 }
@@ -78,12 +90,14 @@ namespace KiDownloader
 
         public TrayPopupForm(
             DownloadEngine engine,
+            string baseDir,
             bool isDark,
             Action onOpenApp,
             Action onNewDownload,
             Action onExitApp)
         {
             _engine = engine;
+            _baseDir = baseDir;
             _isDark = isDark;
             _isFa = engine != null && engine.Settings != null &&
                     string.Equals(engine.Settings.Language, "fa", StringComparison.OrdinalIgnoreCase);
@@ -393,8 +407,8 @@ namespace KiDownloader
                     : string.Format("Ready • v{0}", DownloadEngine.AppVersion);
             }
 
-            using (Font titleFont = CreateUiFont(10.5f, FontStyle.Bold))
-            using (Font subFont = CreateUiFont(8.5f, FontStyle.Regular))
+            using (Font titleFont = new Font("Segoe UI", 10.5f, FontStyle.Bold))
+            using (Font subFont = CreateUiFont(8.8f, FontStyle.Regular))
             using (SolidBrush titleBrush = new SolidBrush(textPrimary))
             using (SolidBrush subBrush = new SolidBrush(textMuted))
             using (SolidBrush dotBrush = new SolidBrush(dotColor))

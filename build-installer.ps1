@@ -21,6 +21,12 @@ if (!(Test-Path "$root\ui\fonts\YekanBakh-VF.woff2") -and !(Test-Path "$root\ui\
     Invoke-WebRequest -Uri $vUrl -OutFile "$root\ui\fonts\Vazirmatn-VF.woff2" -UseBasicParsing
 }
 New-Item -ItemType Directory -Force -Path "$root\assets" | Out-Null
+if (!(Test-Path "$root\assets\YekanBakh-Regular.ttf")) {
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ezhoosh/BarberKioskAgent/20a9d8e403b4641fbbc94b98e7113c6694cf44cb/statics/YekanBakh-Regular.ttf" -OutFile "$root\assets\YekanBakh-Regular.ttf" -UseBasicParsing
+}
+if (!(Test-Path "$root\assets\YekanBakh-Bold.ttf")) {
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ezhoosh/BarberKioskAgent/20a9d8e403b4641fbbc94b98e7113c6694cf44cb/statics/YekanBakh-Bold.ttf" -OutFile "$root\assets\YekanBakh-Bold.ttf" -UseBasicParsing
+}
 if (!(Test-Path "$root\assets\Vazirmatn-Regular.ttf")) {
     Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/ttf/Vazirmatn-Regular.ttf" -OutFile "$root\assets\Vazirmatn-Regular.ttf" -UseBasicParsing
 }

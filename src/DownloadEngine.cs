@@ -19,6 +19,8 @@ namespace KiDownloader
         private readonly object _stateLock = new object();
         private readonly object _fileIoLock = new object();
         private readonly Dictionary<string, CancellationTokenSource> _activeTokens = new Dictionary<string, CancellationTokenSource>();
+        private readonly Dictionary<string, HashSet<HttpWebRequest>> _activeRequests = new Dictionary<string, HashSet<HttpWebRequest>>();
+        private readonly Dictionary<string, HashSet<IDisposable>> _activeStreams = new Dictionary<string, HashSet<IDisposable>>();
         private readonly Dictionary<string, TokenBucketLimiter> _itemLimiters = new Dictionary<string, TokenBucketLimiter>();
         private readonly TokenBucketLimiter _globalLimiter = new TokenBucketLimiter(0);
         private readonly Socks5HttpRelay _socksRelay = new Socks5HttpRelay();
@@ -57,6 +59,7 @@ namespace KiDownloader
                 try { Directory.CreateDirectory(Settings.DefaultSaveFolder); } catch { }
             }
 
+            // Recover interrupted downloads from previous crash/exit into Paused state
             lock (_stateLock)
             {
                 foreach (var d in Downloads)
@@ -152,7 +155,12 @@ namespace KiDownloader
             return full;
         }
 
-        public async Task<ProbeResult> ProbeUrlAsync(string url, string referer, string cookies, string userAgent)
+        public Task<ProbeResult> ProbeUrlAsync(string url, string referer, string cookies, string userAgent)
+        {
+            return ProbeUrlAsync(url, referer, cookies, userAgent, CancellationToken.None, null);
+        }
+
+        public async Task<ProbeResult> ProbeUrlAsync(string url, string referer, string cookies, string userAgent, CancellationToken ct, string trackItemId)
         {
             ProbeResult res = new ProbeResult { FinalUrl = url };
             try
@@ -164,13 +172,17 @@ namespace KiDownloader
                     return res;
                 }
 
-                ProbeResult headRes = await ProbeWithMethodAsync(url, "HEAD", false, referer, cookies, userAgent).ConfigureAwait(false);
+                // Attempt HEAD first
+                ProbeResult headRes = await ProbeWithMethodAsync(url, "HEAD", false, referer, cookies, userAgent, ct, trackItemId).ConfigureAwait(false);
+                if (ct.IsCancellationRequested) return res;
                 if (headRes.Success && (headRes.TotalBytes > 0 || headRes.SupportsRange))
                 {
                     return headRes;
                 }
 
-                ProbeResult rangeRes = await ProbeWithMethodAsync(url, "GET", true, referer, cookies, userAgent).ConfigureAwait(false);
+                // Fallback: GET with Range: bytes=0-0 (many Iranian CDNs / Cloudflare Workers / reverse proxies block HEAD)
+                ProbeResult rangeRes = await ProbeWithMethodAsync(url, "GET", true, referer, cookies, userAgent, ct, trackItemId).ConfigureAwait(false);
+                if (ct.IsCancellationRequested) return res;
                 if (rangeRes.Success)
                 {
                     return rangeRes;
@@ -185,7 +197,7 @@ namespace KiDownloader
             }
         }
 
-        private async Task<ProbeResult> ProbeWithMethodAsync(string url, string method, bool useRangeZero, string referer, string cookies, string userAgent)
+        private async Task<ProbeResult> ProbeWithMethodAsync(string url, string method, bool useRangeZero, string referer, string cookies, string userAgent, CancellationToken ct, string trackItemId)
         {
             ProbeResult res = new ProbeResult { FinalUrl = url };
             HttpWebRequest req = CreateRequest(url, method, referer, cookies, userAgent);
@@ -196,8 +208,10 @@ namespace KiDownloader
                 req.AddRange(0, 0);
             }
 
+            RegisterActiveRequest(trackItemId, req);
             try
             {
+                using (ct.Register(delegate { try { req.Abort(); } catch { } }))
                 using (HttpWebResponse resp = (HttpWebResponse)await req.GetResponseAsync().ConfigureAwait(false))
                 {
                     res.Success = true;
@@ -251,7 +265,92 @@ namespace KiDownloader
             {
                 res.Error = ex.Message;
             }
+            finally
+            {
+                UnregisterActiveRequest(trackItemId, req);
+            }
             return res;
+        }
+
+        private void RegisterActiveRequest(string itemId, HttpWebRequest req)
+        {
+            if (string.IsNullOrEmpty(itemId) || req == null) return;
+            lock (_stateLock)
+            {
+                HashSet<HttpWebRequest> set;
+                if (!_activeRequests.TryGetValue(itemId, out set))
+                {
+                    set = new HashSet<HttpWebRequest>();
+                    _activeRequests[itemId] = set;
+                }
+                set.Add(req);
+            }
+        }
+
+        private void UnregisterActiveRequest(string itemId, HttpWebRequest req)
+        {
+            if (string.IsNullOrEmpty(itemId) || req == null) return;
+            lock (_stateLock)
+            {
+                HashSet<HttpWebRequest> set;
+                if (_activeRequests.TryGetValue(itemId, out set)) set.Remove(req);
+            }
+        }
+
+        private void RegisterActiveStream(string itemId, IDisposable stream)
+        {
+            if (string.IsNullOrEmpty(itemId) || stream == null) return;
+            lock (_stateLock)
+            {
+                HashSet<IDisposable> set;
+                if (!_activeStreams.TryGetValue(itemId, out set))
+                {
+                    set = new HashSet<IDisposable>();
+                    _activeStreams[itemId] = set;
+                }
+                set.Add(stream);
+            }
+        }
+
+        private void UnregisterActiveStream(string itemId, IDisposable stream)
+        {
+            if (string.IsNullOrEmpty(itemId) || stream == null) return;
+            lock (_stateLock)
+            {
+                HashSet<IDisposable> set;
+                if (_activeStreams.TryGetValue(itemId, out set)) set.Remove(stream);
+            }
+        }
+
+        private void CancelAndAbortItem(string id, out CancellationTokenSource cts)
+        {
+            List<HttpWebRequest> reqs = null;
+            List<IDisposable> streams = null;
+            lock (_stateLock)
+            {
+                if (_activeTokens.TryGetValue(id, out cts)) _activeTokens.Remove(id);
+                HashSet<HttpWebRequest> rset;
+                if (_activeRequests.TryGetValue(id, out rset))
+                {
+                    reqs = rset.ToList();
+                    _activeRequests.Remove(id);
+                }
+                HashSet<IDisposable> sset;
+                if (_activeStreams.TryGetValue(id, out sset))
+                {
+                    streams = sset.ToList();
+                    _activeStreams.Remove(id);
+                }
+            }
+            if (cts != null) { try { cts.Cancel(); } catch { } }
+            if (streams != null)
+            {
+                foreach (var s in streams) { try { s.Dispose(); } catch { } }
+            }
+            if (reqs != null)
+            {
+                foreach (var r in reqs) { try { r.Abort(); } catch { } }
+            }
         }
 
         private HttpWebRequest CreateRequest(string url, string method, string referer, string cookies, string userAgent)
@@ -259,17 +358,17 @@ namespace KiDownloader
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
             req.Method = method;
             req.AllowAutoRedirect = true;
-            req.MaximumAutomaticRedirections = 10;
-            req.UserAgent = string.IsNullOrWhiteSpace(userAgent) ? Settings.UserAgent : userAgent;
+            req.MaximumAutomaticRedirections = 12;
+            req.UserAgent = string.IsNullOrWhiteSpace(userAgent) ? Settings.DefaultUserAgent : userAgent;
+            req.Accept = "*/*";
             req.AutomaticDecompression = DecompressionMethods.None;
-            req.KeepAlive = true;
-            req.ServicePoint.ConnectionLeaseTimeout = 60000;
-            req.Proxy = NetworkHelper.BuildWebProxy(Settings.Proxy, _socksRelay);
+            req.ServicePoint.Expect100Continue = false;
+            req.ServicePoint.UseNagleAlgorithm = false;
 
             if (!string.IsNullOrWhiteSpace(referer)) req.Referer = referer;
             if (!string.IsNullOrWhiteSpace(cookies)) req.Headers["Cookie"] = cookies;
-            req.Accept = "*/*";
-            req.Headers["Accept-Language"] = "fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7";
+
+            req.Proxy = NetworkHelper.BuildWebProxy(Settings.Proxy, _socksRelay);
             return req;
         }
 
@@ -278,10 +377,10 @@ namespace KiDownloader
             string cd = resp.Headers["Content-Disposition"];
             if (!string.IsNullOrEmpty(cd))
             {
-                Match mStar = Regex.Match(cd, @"filename\*\s*=\s*(?:UTF-8|utf-8)''([^;\r\n]+)");
+                Match mStar = Regex.Match(cd, @"filename\*\s*=\s*UTF-8''([^;\r\n]+)", RegexOptions.IgnoreCase);
                 if (mStar.Success)
                 {
-                    return SanitizeFileName(Uri.UnescapeDataString(mStar.Groups[1].Value.Trim('"', '\'')));
+                    return SanitizeFileName(Uri.UnescapeDataString(mStar.Groups[1].Value.Trim('"')));
                 }
                 Match m = Regex.Match(cd, @"filename\s*=\s*""?([^"";\r\n]+)""?", RegexOptions.IgnoreCase);
                 if (m.Success)
@@ -292,23 +391,22 @@ namespace KiDownloader
 
             try
             {
-                Uri u = new Uri(finalUrl);
-                string seg = u.Segments.LastOrDefault();
+                Uri uri = new Uri(finalUrl);
+                string seg = uri.Segments.LastOrDefault();
                 if (!string.IsNullOrEmpty(seg) && seg != "/")
                 {
-                    string decoded = SanitizeFileName(seg.TrimEnd('/'));
-                    if (!string.IsNullOrWhiteSpace(decoded)) return decoded;
+                    return SanitizeFileName(seg.TrimEnd('/'));
                 }
             }
             catch { }
 
-            return "download_" + DateTime.UtcNow.ToString("HHmmss");
+            return SanitizeFileName("download_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
         }
 
         public DownloadItem AddDownload(
             string url,
-            string customFileName,
-            string customFolder,
+            string fileName,
+            string saveFolder,
             int connections,
             bool startNow,
             bool iranResilient,
@@ -317,31 +415,26 @@ namespace KiDownloader
             string cookies,
             DateTime? scheduledFor)
         {
+            string cleanName = string.IsNullOrWhiteSpace(fileName) ? ExtractNameFromUrl(url) : SanitizeFileName(fileName);
+            string category = CategorizeFile(cleanName, "");
+            string folder = ResolveSaveFolder(category, saveFolder);
+            string finalPath = GetUniqueFilePath(folder, cleanName);
+
             DownloadItem item = new DownloadItem
             {
                 Url = url.Trim(),
-                FileName = string.IsNullOrWhiteSpace(customFileName) ? SanitizeFileName(ExtractNameFromUrl(url)) : SanitizeFileName(customFileName),
+                FileName = Path.GetFileName(finalPath),
+                SaveFolder = folder,
+                FinalFilePath = finalPath,
+                TempFilePath = finalPath + ".kidown",
+                Category = category,
                 MaxConnections = Math.Max(1, Math.Min(32, connections > 0 ? connections : Settings.DefaultConnections)),
                 IranResilientMode = iranResilient,
                 Referer = referer ?? "",
                 Cookies = cookies ?? "",
-                UserAgent = Settings.UserAgent,
-                ScheduledFor = scheduledFor
+                ScheduledFor = scheduledFor,
+                MirrorUrls = mirrors != null ? mirrors.Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => m.Trim()).ToList() : new List<string>()
             };
-
-            if (mirrors != null)
-            {
-                foreach (string m in mirrors)
-                {
-                    if (!string.IsNullOrWhiteSpace(m)) item.MirrorUrls.Add(m.Trim());
-                }
-            }
-
-            item.Category = CategorizeFile(item.FileName, "");
-            item.SaveFolder = ResolveSaveFolder(item.Category, customFolder);
-            item.FinalFilePath = GetUniqueFilePath(item.SaveFolder, item.FileName);
-            item.FileName = Path.GetFileName(item.FinalFilePath);
-            item.TempFilePath = item.FinalFilePath + ".kidown";
 
             if (scheduledFor.HasValue && scheduledFor.Value > DateTime.Now)
             {
@@ -418,12 +511,8 @@ namespace KiDownloader
                     if (s.Status != SegmentStatus.Done) s.Status = SegmentStatus.Pending;
                     s.SpeedBps = 0;
                 }
-                if (_activeTokens.TryGetValue(id, out cts))
-                {
-                    _activeTokens.Remove(id);
-                }
             }
-            if (cts != null) { try { cts.Cancel(); } catch { } }
+            CancelAndAbortItem(id, out cts);
             MarkDirtyAndNotify();
             TryStartNextQueued();
         }
@@ -433,7 +522,7 @@ namespace KiDownloader
             List<string> ids;
             lock (_stateLock)
             {
-                ids = Downloads.Where(x => x.Status == DownloadStatus.Downloading || x.Status == DownloadStatus.Queued || x.Status == DownloadStatus.Probing).Select(x => x.Id).ToList();
+                ids = Downloads.Where(x => x.Status == DownloadStatus.Downloading || x.Status == DownloadStatus.Queued || x.Status == DownloadStatus.Probing || x.Status == DownloadStatus.Merging).Select(x => x.Id).ToList();
             }
             foreach (string id in ids) Pause(id);
         }
@@ -465,10 +554,9 @@ namespace KiDownloader
                 item = Downloads.FirstOrDefault(x => x.Id == id);
                 if (item == null) return;
                 Downloads.Remove(item);
-                if (_activeTokens.TryGetValue(id, out cts)) _activeTokens.Remove(id);
                 _itemLimiters.Remove(id);
             }
-            if (cts != null) { try { cts.Cancel(); } catch { } }
+            CancelAndAbortItem(id, out cts);
 
             if (deleteFiles && item != null)
             {
@@ -578,6 +666,7 @@ namespace KiDownloader
             lock (_stateLock)
             {
                 DateTime now = DateTime.Now;
+                // Check scheduled downloads
                 foreach (var d in Downloads)
                 {
                     if (d.Status == DownloadStatus.Scheduled && d.ScheduledFor.HasValue && now >= d.ScheduledFor.Value)
@@ -588,6 +677,7 @@ namespace KiDownloader
                     }
                 }
 
+                // Night Free Traffic Mode (e.g., 02:00 - 07:00)
                 if (Settings.Scheduler.NightModeEnabled)
                 {
                     TimeSpan startTs, endTs;
@@ -616,16 +706,13 @@ namespace KiDownloader
                         else if (!inWindow && _nightWindowTriggered)
                         {
                             _nightWindowTriggered = false;
+                            // Pause active downloads when night free traffic window closes
                             foreach (var d in Downloads.ToList())
                             {
-                                if (d.Status == DownloadStatus.Downloading || d.Status == DownloadStatus.Queued)
+                                if (d.Status == DownloadStatus.Downloading || d.Status == DownloadStatus.Queued || d.Status == DownloadStatus.Probing)
                                 {
                                     CancellationTokenSource cts;
-                                    if (_activeTokens.TryGetValue(d.Id, out cts))
-                                    {
-                                        _activeTokens.Remove(d.Id);
-                                        try { cts.Cancel(); } catch { }
-                                    }
+                                    CancelAndAbortItem(d.Id, out cts);
                                     d.Status = DownloadStatus.Paused;
                                     d.SpeedBps = 0;
                                     d.StatusDetail = "Night window ended";
@@ -636,6 +723,7 @@ namespace KiDownloader
                     }
                 }
 
+                // Speed telemetry aggregation for active downloads
                 foreach (var d in Downloads)
                 {
                     if (d.Status == DownloadStatus.Downloading)
@@ -665,6 +753,7 @@ namespace KiDownloader
                     }
                 }
 
+                // Check if queue finished and post-queue action needed
                 if (Settings.Scheduler.PostAction != PostQueueAction.None &&
                     Settings.Scheduler.PostAction != PostQueueAction.Notify)
                 {
@@ -741,6 +830,7 @@ namespace KiDownloader
         {
             try
             {
+                // Optional DoH warmup
                 if (Settings.Doh != null && Settings.Doh.Enabled)
                 {
                     try
@@ -751,21 +841,25 @@ namespace KiDownloader
                     catch { }
                 }
 
+                // Probe only if we don't already have segments & size from a prior paused run
                 if (item.Segments.Count == 0 || item.TotalBytes <= 0)
                 {
-                    ProbeResult probe = await ProbeUrlAsync(GetActiveUrl(item), item.Referer, item.Cookies, item.UserAgent).ConfigureAwait(false);
+                    ProbeResult probe = await ProbeUrlAsync(GetActiveUrl(item), item.Referer, item.Cookies, item.UserAgent, ct, item.Id).ConfigureAwait(false);
                     if (ct.IsCancellationRequested) return;
 
+                    // Try mirror fallback if primary probe failed
                     if (!probe.Success && item.MirrorUrls.Count > 0)
                     {
                         for (int m = 0; m < item.MirrorUrls.Count; m++)
                         {
+                            if (ct.IsCancellationRequested) return;
                             item.ActiveMirrorIndex = m;
-                            probe = await ProbeUrlAsync(GetActiveUrl(item), item.Referer, item.Cookies, item.UserAgent).ConfigureAwait(false);
+                            probe = await ProbeUrlAsync(GetActiveUrl(item), item.Referer, item.Cookies, item.UserAgent, ct, item.Id).ConfigureAwait(false);
                             if (probe.Success) break;
                         }
                     }
 
+                    if (ct.IsCancellationRequested) return;
                     if (!probe.Success)
                     {
                         FailItem(item, probe.Error ?? "Failed to connect to server.");
@@ -774,12 +868,14 @@ namespace KiDownloader
 
                     lock (_stateLock)
                     {
+                        if (ct.IsCancellationRequested || item.Status == DownloadStatus.Paused) return;
                         item.TotalBytes = probe.TotalBytes;
-                        item.SupportsRange = probe.SupportsRange && probe.TotalBytes > 262144;
+                        item.SupportsRange = probe.SupportsRange && probe.TotalBytes > 262144; // >256KB for multi-stream
                         item.MimeType = probe.MimeType;
                         item.ETag = probe.ETag;
                         if (!string.IsNullOrEmpty(probe.FileName) && item.DownloadedBytes == 0)
                         {
+                            string oldCat = item.Category;
                             item.Category = CategorizeFile(probe.FileName, probe.MimeType);
                             item.SaveFolder = ResolveSaveFolder(item.Category, null);
                             item.FinalFilePath = GetUniqueFilePath(item.SaveFolder, probe.FileName);
@@ -820,6 +916,7 @@ namespace KiDownloader
                     }
                 }
 
+                // Ensure temp file exists and is pre-sized when total size known
                 using (FileStream fs = new FileStream(item.TempFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite))
                 {
                     if (item.TotalBytes > 0 && fs.Length != item.TotalBytes)
@@ -830,6 +927,7 @@ namespace KiDownloader
 
                 lock (_stateLock)
                 {
+                    if (ct.IsCancellationRequested || item.Status == DownloadStatus.Paused) return;
                     item.Status = DownloadStatus.Downloading;
                     item.StatusDetail = item.SupportsRange
                         ? string.Format("Streaming ({0} connections)", item.Segments.Count)
@@ -848,6 +946,7 @@ namespace KiDownloader
 
                 if (ct.IsCancellationRequested) return;
 
+                // Verify completion
                 bool allDone;
                 lock (_stateLock)
                 {
@@ -892,6 +991,7 @@ namespace KiDownloader
             }
             catch (OperationCanceledException)
             {
+                // Paused or removed
             }
             catch (Exception ex)
             {
@@ -946,6 +1046,8 @@ namespace KiDownloader
 
                 if (currentSeg.Status == SegmentStatus.Error) return;
 
+                // Dynamic Segment Stealing (Iran-Resilient Mode):
+                // When a fast stream finishes early, split the largest remaining slow/stalled segment in half!
                 SegmentState stolen = null;
                 if (item.IranResilientMode && Settings.DynamicSegmentStealing)
                 {
@@ -989,7 +1091,7 @@ namespace KiDownloader
         private async Task DownloadSegmentWithIranResilienceAsync(DownloadItem item, SegmentState seg, CancellationToken ct)
         {
             int maxRetries = item.IranResilientMode ? Math.Max(10, Settings.MaxRetriesPerSegment) : 5;
-            byte[] buffer = new byte[65536];
+            byte[] buffer = new byte[65536]; // 64KB chunk buffer
             TokenBucketLimiter itemLimiter = _itemLimiters.ContainsKey(item.Id) ? _itemLimiters[item.Id] : null;
 
             while (!ct.IsCancellationRequested)
@@ -1011,20 +1113,34 @@ namespace KiDownloader
 
                 int retryDelayMs = 0;
                 HttpWebRequest req = null;
+                HttpWebResponse resp = null;
+                Stream stream = null;
                 CancellationTokenSource stallCts = null;
                 try
                 {
+                    if (ct.IsCancellationRequested) return;
                     string activeUrl = GetActiveUrl(item);
                     req = CreateRequest(activeUrl, "GET", item.Referer, item.Cookies, item.UserAgent);
                     req.Timeout = 15000;
-                    req.ReadWriteTimeout = 15000;
+                    req.ReadWriteTimeout = 10000;
                     req.AddRange(startPos, endPos);
 
+                    RegisterActiveRequest(item.Id, req);
                     stallCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    using (ct.Register(delegate { try { if (req != null) req.Abort(); } catch { } }))
-                    using (HttpWebResponse resp = (HttpWebResponse)await req.GetResponseAsync().ConfigureAwait(false))
-                    using (Stream stream = resp.GetResponseStream())
+                    using (ct.Register(delegate
                     {
+                        try { if (stream != null) stream.Dispose(); } catch { }
+                        try { if (resp != null) resp.Close(); } catch { }
+                        try { if (req != null) req.Abort(); } catch { }
+                    }))
+                    {
+                        resp = (HttpWebResponse)await req.GetResponseAsync().ConfigureAwait(false);
+                        RegisterActiveStream(item.Id, resp);
+                        stream = resp.GetResponseStream();
+                        RegisterActiveStream(item.Id, stream);
+                        if (ct.IsCancellationRequested) return;
+
+                        // Check if server ignored Range on a non-zero offset
                         if (startPos > 0 && resp.StatusCode == HttpStatusCode.OK)
                         {
                             throw new IOException("Server returned 200 OK instead of 206 Partial Content.");
@@ -1032,6 +1148,7 @@ namespace KiDownloader
 
                         lock (_stateLock)
                         {
+                            if (ct.IsCancellationRequested || item.Status == DownloadStatus.Paused) return;
                             seg.Status = SegmentStatus.Streaming;
                         }
 
@@ -1040,9 +1157,10 @@ namespace KiDownloader
                         DateTime lastRateCheck = DateTime.UtcNow;
                         DateTime stallStart = DateTime.UtcNow;
 
+                        // Watchdog timer to abort stalled Iran sockets
                         using (System.Threading.Timer watchdog = new System.Threading.Timer(delegate
                         {
-                            if (!item.IranResilientMode) return;
+                            if (!item.IranResilientMode || ct.IsCancellationRequested) return;
                             double elapsed = (DateTime.UtcNow - stallStart).TotalSeconds;
                             if (elapsed >= Settings.StallTimeoutSeconds)
                             {
@@ -1050,18 +1168,20 @@ namespace KiDownloader
                                 {
                                     lock (_stateLock)
                                     {
+                                        if (ct.IsCancellationRequested) return;
                                         seg.Status = SegmentStatus.Stalled;
                                         seg.StallsRecovered++;
                                         item.StallsRecovered++;
                                     }
                                     stallCts.Cancel();
+                                    if (stream != null) stream.Dispose();
                                     if (req != null) req.Abort();
                                 }
                                 catch { }
                             }
                         }, null, 1000, 1000))
                         {
-                            while (!stallCts.IsCancellationRequested)
+                            while (!stallCts.IsCancellationRequested && !ct.IsCancellationRequested)
                             {
                                 long remaining;
                                 lock (_stateLock)
@@ -1080,16 +1200,19 @@ namespace KiDownloader
 
                                 int toRead = (int)Math.Min(buffer.Length, remaining);
                                 int read = await stream.ReadAsync(buffer, 0, toRead, stallCts.Token).ConfigureAwait(false);
+                                if (ct.IsCancellationRequested || stallCts.IsCancellationRequested) return;
                                 if (read <= 0) break;
 
                                 if (Settings.GlobalSpeedLimitKBps > 0)
                                     await _globalLimiter.ConsumeAsync(read, stallCts.Token).ConfigureAwait(false);
                                 if (itemLimiter != null && item.SpeedLimitKBps > 0)
                                     await itemLimiter.ConsumeAsync(read, stallCts.Token).ConfigureAwait(false);
+                                if (ct.IsCancellationRequested) return;
 
                                 long writePos;
                                 lock (_stateLock)
                                 {
+                                    if (ct.IsCancellationRequested || item.Status == DownloadStatus.Paused) return;
                                     long maxAllowed = seg.EndByte - seg.CurrentByte + 1;
                                     if (maxAllowed <= 0)
                                     {
@@ -1120,7 +1243,8 @@ namespace KiDownloader
                                     double instSpeed = bytesSinceLastTick / dt;
                                     lock (_stateLock)
                                     {
-                                        seg.SpeedBps = seg.SpeedBps <= 0 ? instSpeed : (seg.SpeedBps * 0.45 + instSpeed * 0.55);
+                                        if (!ct.IsCancellationRequested)
+                                            seg.SpeedBps = seg.SpeedBps <= 0 ? instSpeed : (seg.SpeedBps * 0.45 + instSpeed * 0.55);
                                     }
                                     if (instSpeed >= Settings.MinStallSpeedKBps * 1024.0)
                                     {
@@ -1137,6 +1261,7 @@ namespace KiDownloader
                             }
                         }
 
+                        if (ct.IsCancellationRequested) return;
                         lock (_stateLock)
                         {
                             if (seg.CurrentByte > seg.EndByte)
@@ -1163,10 +1288,11 @@ namespace KiDownloader
                         seg.Status = SegmentStatus.Retrying;
                         seg.LastError = ex.Message;
 
+                        // Rotate mirror if available after every 3 consecutive failures
                         if (item.MirrorUrls.Count > 0 && retryCount % 3 == 0)
                         {
                             item.ActiveMirrorIndex = (item.ActiveMirrorIndex + 1) % (item.MirrorUrls.Count + 1);
-                            if (item.ActiveMirrorIndex == item.MirrorUrls.Count) item.ActiveMirrorIndex = -1;
+                            if (item.ActiveMirrorIndex == item.MirrorUrls.Count) item.ActiveMirrorIndex = -1; // back to primary
                         }
                     }
 
@@ -1180,6 +1306,7 @@ namespace KiDownloader
                         throw new IOException(string.Format("Segment {0} failed after {1} retries: {2}", seg.Index, maxRetries, ex.Message));
                     }
 
+                    // When internet drops: either pause cleanly like IDM (resumable from exact byte) or hold/wait if AutoResumeOnReconnect is enabled
                     if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
                     {
                         if (!Settings.AutoResumeOnReconnect)
@@ -1195,6 +1322,7 @@ namespace KiDownloader
                     }
                     else
                     {
+                        // Exponential backoff with random jitter (350ms up to 10s)
                         int baseDelay = (int)Math.Min(10000, 350 * Math.Pow(1.5, Math.Min(10, retryCount - 1)));
                         int jitter;
                         lock (_rng) { jitter = _rng.Next(100, 600); }
@@ -1203,6 +1331,11 @@ namespace KiDownloader
                 }
                 finally
                 {
+                    UnregisterActiveStream(item.Id, stream);
+                    UnregisterActiveStream(item.Id, resp);
+                    UnregisterActiveRequest(item.Id, req);
+                    try { if (stream != null) stream.Dispose(); } catch { }
+                    try { if (resp != null) resp.Close(); } catch { }
                     if (stallCts != null) stallCts.Dispose();
                 }
 
@@ -1222,54 +1355,76 @@ namespace KiDownloader
             while (!ct.IsCancellationRequested)
             {
                 int singleDelayMs = 0;
+                HttpWebRequest req = null;
+                HttpWebResponse resp = null;
+                Stream stream = null;
                 try
                 {
                     lock (_stateLock)
                     {
+                        if (ct.IsCancellationRequested || item.Status == DownloadStatus.Paused) return;
                         seg.CurrentByte = 0;
                         seg.Status = SegmentStatus.Connecting;
                     }
 
-                    HttpWebRequest req = CreateRequest(GetActiveUrl(item), "GET", item.Referer, item.Cookies, item.UserAgent);
+                    req = CreateRequest(GetActiveUrl(item), "GET", item.Referer, item.Cookies, item.UserAgent);
                     req.Timeout = 20000;
-                    using (ct.Register(delegate { try { req.Abort(); } catch { } }))
-                    using (HttpWebResponse resp = (HttpWebResponse)await req.GetResponseAsync().ConfigureAwait(false))
-                    using (Stream stream = resp.GetResponseStream())
-                    using (FileStream fs = new FileStream(item.TempFilePath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+                    RegisterActiveRequest(item.Id, req);
+                    using (ct.Register(delegate
                     {
-                        lock (_stateLock) { seg.Status = SegmentStatus.Streaming; }
-                        long bytesTick = 0;
-                        DateTime lastCheck = DateTime.UtcNow;
-
-                        int read;
-                        while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
+                        try { if (stream != null) stream.Dispose(); } catch { }
+                        try { if (resp != null) resp.Close(); } catch { }
+                        try { if (req != null) req.Abort(); } catch { }
+                    }))
+                    {
+                        resp = (HttpWebResponse)await req.GetResponseAsync().ConfigureAwait(false);
+                        RegisterActiveStream(item.Id, resp);
+                        stream = resp.GetResponseStream();
+                        RegisterActiveStream(item.Id, stream);
+                        using (FileStream fs = new FileStream(item.TempFilePath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
                         {
-                            if (Settings.GlobalSpeedLimitKBps > 0)
-                                await _globalLimiter.ConsumeAsync(read, ct).ConfigureAwait(false);
-                            if (itemLimiter != null && item.SpeedLimitKBps > 0)
-                                await itemLimiter.ConsumeAsync(read, ct).ConfigureAwait(false);
-
-                            fs.Write(buffer, 0, read);
-                            bytesTick += read;
                             lock (_stateLock)
                             {
-                                seg.CurrentByte += read;
-                                double dt = (DateTime.UtcNow - lastCheck).TotalSeconds;
-                                if (dt >= 0.35)
+                                if (ct.IsCancellationRequested || item.Status == DownloadStatus.Paused) return;
+                                seg.Status = SegmentStatus.Streaming;
+                            }
+                            long bytesTick = 0;
+                            DateTime lastCheck = DateTime.UtcNow;
+
+                            int read;
+                            while (!ct.IsCancellationRequested && (read = await stream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
+                            {
+                                if (ct.IsCancellationRequested) return;
+                                if (Settings.GlobalSpeedLimitKBps > 0)
+                                    await _globalLimiter.ConsumeAsync(read, ct).ConfigureAwait(false);
+                                if (itemLimiter != null && item.SpeedLimitKBps > 0)
+                                    await itemLimiter.ConsumeAsync(read, ct).ConfigureAwait(false);
+                                if (ct.IsCancellationRequested) return;
+
+                                fs.Write(buffer, 0, read);
+                                bytesTick += read;
+                                lock (_stateLock)
                                 {
-                                    seg.SpeedBps = bytesTick / dt;
-                                    bytesTick = 0;
-                                    lastCheck = DateTime.UtcNow;
+                                    if (ct.IsCancellationRequested || item.Status == DownloadStatus.Paused) return;
+                                    seg.CurrentByte += read;
+                                    double dt = (DateTime.UtcNow - lastCheck).TotalSeconds;
+                                    if (dt >= 0.35)
+                                    {
+                                        seg.SpeedBps = bytesTick / dt;
+                                        bytesTick = 0;
+                                        lastCheck = DateTime.UtcNow;
+                                    }
                                 }
                             }
-                        }
 
-                        lock (_stateLock)
-                        {
-                            seg.Status = SegmentStatus.Done;
-                            seg.SpeedBps = 0;
+                            if (ct.IsCancellationRequested) return;
+                            lock (_stateLock)
+                            {
+                                seg.Status = SegmentStatus.Done;
+                                seg.SpeedBps = 0;
+                            }
+                            return;
                         }
-                        return;
                     }
                 }
                 catch (Exception ex)
@@ -1285,6 +1440,14 @@ namespace KiDownloader
                     }
                     if (retries > 8) throw;
                     singleDelayMs = 1200 * retries;
+                }
+                finally
+                {
+                    UnregisterActiveStream(item.Id, stream);
+                    UnregisterActiveStream(item.Id, resp);
+                    UnregisterActiveRequest(item.Id, req);
+                    try { if (stream != null) stream.Dispose(); } catch { }
+                    try { if (resp != null) resp.Close(); } catch { }
                 }
                 if (singleDelayMs > 0)
                 {

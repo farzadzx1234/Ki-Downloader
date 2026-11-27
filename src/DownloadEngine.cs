@@ -358,17 +358,17 @@ namespace KiDownloader
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
             req.Method = method;
             req.AllowAutoRedirect = true;
-            req.MaximumAutomaticRedirections = 12;
-            req.UserAgent = string.IsNullOrWhiteSpace(userAgent) ? Settings.DefaultUserAgent : userAgent;
-            req.Accept = "*/*";
+            req.MaximumAutomaticRedirections = 10;
+            req.UserAgent = string.IsNullOrWhiteSpace(userAgent) ? Settings.UserAgent : userAgent;
             req.AutomaticDecompression = DecompressionMethods.None;
-            req.ServicePoint.Expect100Continue = false;
-            req.ServicePoint.UseNagleAlgorithm = false;
+            req.KeepAlive = true;
+            req.ServicePoint.ConnectionLeaseTimeout = 60000;
+            req.Proxy = NetworkHelper.BuildWebProxy(Settings.Proxy, _socksRelay);
 
             if (!string.IsNullOrWhiteSpace(referer)) req.Referer = referer;
             if (!string.IsNullOrWhiteSpace(cookies)) req.Headers["Cookie"] = cookies;
-
-            req.Proxy = NetworkHelper.BuildWebProxy(Settings.Proxy, _socksRelay);
+            req.Accept = "*/*";
+            req.Headers["Accept-Language"] = "fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7";
             return req;
         }
 
@@ -377,10 +377,11 @@ namespace KiDownloader
             string cd = resp.Headers["Content-Disposition"];
             if (!string.IsNullOrEmpty(cd))
             {
-                Match mStar = Regex.Match(cd, @"filename\*\s*=\s*UTF-8''([^;\r\n]+)", RegexOptions.IgnoreCase);
+                // RFC 5987 UTF-8 filename*
+                Match mStar = Regex.Match(cd, @"filename\*\s*=\s*(?:UTF-8|utf-8)''([^;\r\n]+)");
                 if (mStar.Success)
                 {
-                    return SanitizeFileName(Uri.UnescapeDataString(mStar.Groups[1].Value.Trim('"')));
+                    return SanitizeFileName(Uri.UnescapeDataString(mStar.Groups[1].Value.Trim('"', '\'')));
                 }
                 Match m = Regex.Match(cd, @"filename\s*=\s*""?([^"";\r\n]+)""?", RegexOptions.IgnoreCase);
                 if (m.Success)
@@ -391,22 +392,23 @@ namespace KiDownloader
 
             try
             {
-                Uri uri = new Uri(finalUrl);
-                string seg = uri.Segments.LastOrDefault();
+                Uri u = new Uri(finalUrl);
+                string seg = u.Segments.LastOrDefault();
                 if (!string.IsNullOrEmpty(seg) && seg != "/")
                 {
-                    return SanitizeFileName(seg.TrimEnd('/'));
+                    string decoded = SanitizeFileName(seg.TrimEnd('/'));
+                    if (!string.IsNullOrWhiteSpace(decoded)) return decoded;
                 }
             }
             catch { }
 
-            return SanitizeFileName("download_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss"));
+            return "download_" + DateTime.UtcNow.ToString("HHmmss");
         }
 
         public DownloadItem AddDownload(
             string url,
-            string fileName,
-            string saveFolder,
+            string customFileName,
+            string customFolder,
             int connections,
             bool startNow,
             bool iranResilient,
@@ -415,26 +417,31 @@ namespace KiDownloader
             string cookies,
             DateTime? scheduledFor)
         {
-            string cleanName = string.IsNullOrWhiteSpace(fileName) ? ExtractNameFromUrl(url) : SanitizeFileName(fileName);
-            string category = CategorizeFile(cleanName, "");
-            string folder = ResolveSaveFolder(category, saveFolder);
-            string finalPath = GetUniqueFilePath(folder, cleanName);
-
             DownloadItem item = new DownloadItem
             {
                 Url = url.Trim(),
-                FileName = Path.GetFileName(finalPath),
-                SaveFolder = folder,
-                FinalFilePath = finalPath,
-                TempFilePath = finalPath + ".kidown",
-                Category = category,
+                FileName = string.IsNullOrWhiteSpace(customFileName) ? SanitizeFileName(ExtractNameFromUrl(url)) : SanitizeFileName(customFileName),
                 MaxConnections = Math.Max(1, Math.Min(32, connections > 0 ? connections : Settings.DefaultConnections)),
                 IranResilientMode = iranResilient,
                 Referer = referer ?? "",
                 Cookies = cookies ?? "",
-                ScheduledFor = scheduledFor,
-                MirrorUrls = mirrors != null ? mirrors.Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => m.Trim()).ToList() : new List<string>()
+                UserAgent = Settings.UserAgent,
+                ScheduledFor = scheduledFor
             };
+
+            if (mirrors != null)
+            {
+                foreach (string m in mirrors)
+                {
+                    if (!string.IsNullOrWhiteSpace(m)) item.MirrorUrls.Add(m.Trim());
+                }
+            }
+
+            item.Category = CategorizeFile(item.FileName, "");
+            item.SaveFolder = ResolveSaveFolder(item.Category, customFolder);
+            item.FinalFilePath = GetUniqueFilePath(item.SaveFolder, item.FileName);
+            item.FileName = Path.GetFileName(item.FinalFilePath);
+            item.TempFilePath = item.FinalFilePath + ".kidown";
 
             if (scheduledFor.HasValue && scheduledFor.Value > DateTime.Now)
             {

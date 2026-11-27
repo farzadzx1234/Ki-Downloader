@@ -19,17 +19,17 @@ jobs:
         run: |
           ./build-installer.ps1
 
-      - name: Publish GitHub Release v1.0.6
+      - name: Publish GitHub Release v1.0.7
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.6
-          name: Ki-Downloader v1.0.6
+          tag_name: v1.0.7
+          name: Ki-Downloader v1.0.7
           body: |
-            ### Ki-Downloader v1.0.6
+            ### Ki-Downloader v1.0.7
 
             **Fixes & Improvements:**
-            - Added App Version indicator (`v1.0.6`) in Settings -> General and `/api/ping`
-            - Added parent/root domain `Referer` fallback and clearer IP/proxy mismatch diagnostics on `HTTP 403: Forbidden` tokenized video links
+            - Redesigned System Tray icon with crisp Liquid Glass gradient, specular sheen, and download dock bar
+            - Modernized System Tray context menu with Windows 11 DWM rounded corners, Dark/Light adaptive renderer, vector menu glyphs, and FA/EN localization
 
             **Install (PowerShell):**
             ```powershell

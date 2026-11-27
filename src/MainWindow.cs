@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -274,19 +275,69 @@ namespace KiDownloader
         private void SetupTrayIcon()
         {
             ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Items.Add("Open Ki-Downloader", null, delegate { RestoreWindowFromTray(); });
-            menu.Items.Add("Resume All", null, delegate { _engine.ResumeAll(); });
-            menu.Items.Add("Pause All", null, delegate { _engine.PauseAll(); });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Exit", null, delegate
+            menu.ShowImageMargin = true;
+            menu.ShowCheckMargin = false;
+            menu.Padding = new Padding(6);
+            menu.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+
+            ToolStripMenuItem openItem = new ToolStripMenuItem("Open Ki-Downloader", null, delegate { RestoreWindowFromTray(); });
+            ToolStripMenuItem resumeItem = new ToolStripMenuItem("Resume All", null, delegate { _engine.ResumeAll(); });
+            ToolStripMenuItem pauseItem = new ToolStripMenuItem("Pause All", null, delegate { _engine.PauseAll(); });
+            ToolStripSeparator sep = new ToolStripSeparator();
+            ToolStripMenuItem exitItem = new ToolStripMenuItem("Exit", null, delegate
             {
                 _allowExit = true;
                 Close();
             });
 
+            foreach (ToolStripMenuItem item in new ToolStripMenuItem[] { openItem, resumeItem, pauseItem, exitItem })
+            {
+                item.Padding = new Padding(4, 6, 12, 6);
+            }
+
+            menu.Items.Add(openItem);
+            menu.Items.Add(resumeItem);
+            menu.Items.Add(pauseItem);
+            menu.Items.Add(sep);
+            menu.Items.Add(exitItem);
+
+            ModernTrayMenuRenderer renderer = new ModernTrayMenuRenderer(EffectiveDarkMode());
+            menu.Renderer = renderer;
+
+            menu.Opening += delegate
+            {
+                bool dark = EffectiveDarkMode();
+                bool isFa = string.Equals(_engine.Settings.Language, "fa", StringComparison.OrdinalIgnoreCase);
+                renderer.IsDark = dark;
+                menu.BackColor = renderer.MenuBackColor;
+                menu.ForeColor = renderer.MenuTextColor;
+
+                openItem.Text = isFa ? "باز کردن Ki-Downloader" : "Open Ki-Downloader";
+                resumeItem.Text = isFa ? "ادامه همه دانلودها" : "Resume All";
+                pauseItem.Text = isFa ? "توقف همه دانلودها" : "Pause All";
+                exitItem.Text = isFa ? "خروج" : "Exit";
+
+                openItem.Image = AppIcons.CreateMenuGlyph("open", dark);
+                resumeItem.Image = AppIcons.CreateMenuGlyph("resume", dark);
+                pauseItem.Image = AppIcons.CreateMenuGlyph("pause", dark);
+                exitItem.Image = AppIcons.CreateMenuGlyph("exit", dark);
+
+                try
+                {
+                    if (menu.IsHandleCreated)
+                    {
+                        int d = dark ? 1 : 0;
+                        DwmSetWindowAttribute(menu.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref d, sizeof(int));
+                        int corner = 2; // DWMWCP_ROUND
+                        DwmSetWindowAttribute(menu.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
+                    }
+                }
+                catch { }
+            };
+
             _trayIcon = new NotifyIcon
             {
-                Icon = AppIcons.CreateAppIcon(64),
+                Icon = AppIcons.CreateTrayIcon(32),
                 Text = "Ki-Downloader",
                 ContextMenuStrip = menu,
                 Visible = true
@@ -752,6 +803,85 @@ namespace KiDownloader
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new MainForm(AppDomain.CurrentDomain.BaseDirectory));
             }
+        }
+    }
+
+    internal sealed class ModernTrayMenuRenderer : ToolStripProfessionalRenderer
+    {
+        public bool IsDark { get; set; }
+
+        public Color MenuBackColor { get { return IsDark ? Color.FromArgb(30, 33, 40) : Color.FromArgb(248, 250, 252); } }
+        public Color MenuTextColor { get { return IsDark ? Color.FromArgb(241, 245, 249) : Color.FromArgb(15, 23, 42); } }
+        private Color MenuBorderColor { get { return IsDark ? Color.FromArgb(55, 62, 74) : Color.FromArgb(203, 213, 225); } }
+        private Color HoverBackColor { get { return IsDark ? Color.FromArgb(51, 58, 70) : Color.FromArgb(226, 232, 240); } }
+        private Color SepColor { get { return IsDark ? Color.FromArgb(52, 58, 68) : Color.FromArgb(226, 232, 240); } }
+
+        public ModernTrayMenuRenderer(bool isDark)
+        {
+            IsDark = isDark;
+            RoundedEdges = true;
+        }
+
+        protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+        {
+            using (SolidBrush br = new SolidBrush(MenuBackColor))
+            {
+                e.Graphics.FillRectangle(br, e.AffectedBounds);
+            }
+        }
+
+        protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
+        {
+            // Keep margin seamless with menu background instead of legacy grey bar
+        }
+
+        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+        {
+            Rectangle r = new Rectangle(0, 0, e.AffectedBounds.Width - 1, e.AffectedBounds.Height - 1);
+            using (Pen p = new Pen(MenuBorderColor, 1f))
+            {
+                e.Graphics.DrawRectangle(p, r);
+            }
+        }
+
+        protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+        {
+            if (!e.Item.Selected && !e.Item.Pressed) return;
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle rect = new Rectangle(4, 2, e.Item.Width - 8, e.Item.Height - 4);
+            using (GraphicsPath path = CreateRoundedRect(rect, 7))
+            using (SolidBrush br = new SolidBrush(HoverBackColor))
+            {
+                g.FillPath(br, path);
+            }
+        }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            e.TextColor = MenuTextColor;
+            base.OnRenderItemText(e);
+        }
+
+        protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+        {
+            int y = e.Item.Height / 2;
+            using (Pen p = new Pen(SepColor, 1f))
+            {
+                e.Graphics.DrawLine(p, 12, y, e.Item.Width - 12, y);
+            }
+        }
+
+        private static GraphicsPath CreateRoundedRect(Rectangle r, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
     }
 }

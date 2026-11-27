@@ -19,19 +19,17 @@ jobs:
         run: |
           ./build-installer.ps1
 
-      - name: Publish GitHub Release v1.0.4
+      - name: Publish GitHub Release v1.0.5
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.4
-          name: Ki-Downloader v1.0.4
+          tag_name: v1.0.5
+          name: Ki-Downloader v1.0.5
           body: |
-            ### Ki-Downloader v1.0.4
+            ### Ki-Downloader v1.0.5
 
-            **Fixes & Improvements:**
-            - Instant Pause on first click + immediate abort/close of all active HTTP requests & streams (zero background bandwidth leak after Pause)
-            - Redesigned Windows-style Minimize / Maximize / Close controls blended with Apple iPhone Liquid Glass pill aesthetics (always anchored at top-right)
-            - Fixed Light Mode Settings segmented tab selector, `<select>` dropdowns, inputs, and toggle tracks so every control has crisp visibility and contrast
-            - Includes Smart App Control-compatible launcher (`Ki-Downloader.ps1` / `Install.cmd`)
+            **Fixes:**
+            - Fixed `403 Forbidden` on signed/anti-hotlink video CDN links by adding browser `Sec-Ch-Ua` / `Sec-Fetch-*` headers, plain `GET` fallback (when `HEAD` and `Range: 0-0` are rejected), and automatic origin `Referer` fallback
+            - Updated browser extension to forward browser `User-Agent`
 
             **Install (PowerShell):**
             ```powershell

@@ -39,7 +39,7 @@ async function sendToKi(url, fileName, referer) {
     await fetch(`${KI_ENDPOINT}/api/add`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, fileName, referer, silent: false })
+      body: JSON.stringify({ url, fileName, referer, userAgent: navigator.userAgent, silent: false })
     });
   } catch {}
 }

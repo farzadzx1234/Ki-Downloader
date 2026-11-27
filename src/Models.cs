@@ -219,8 +219,8 @@ namespace KiDownloader
         public bool DynamicSegmentStealing { get; set; }
         public bool MinimizeToTray { get; set; }
         public bool ShowNotifications { get; set; }
-        public string Language { get; set; }
-        public string Theme { get; set; }
+        public string Language { get; set; } // "fa" or "en"
+        public string Theme { get; set; }    // "auto", "dark", "light"
         public bool ReduceMotion { get; set; }
         public bool ReduceTransparency { get; set; }
         public ProxySettings Proxy { get; set; }
@@ -267,5 +267,6 @@ namespace KiDownloader
         public string ETag { get; set; }
         public int StatusCode { get; set; }
         public string Error { get; set; }
+        public string EffectiveReferer { get; set; }
     }
 }

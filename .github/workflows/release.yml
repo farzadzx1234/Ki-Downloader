@@ -19,26 +19,24 @@ jobs:
         run: |
           ./build-installer.ps1
 
-      - name: Publish GitHub Release v1.0.2
+      - name: Publish GitHub Release v1.0.3
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.2
-          name: Ki-Downloader v1.0.2
+          tag_name: v1.0.3
+          name: Ki-Downloader v1.0.3
           body: |
-            ### Ki-Downloader v1.0.2
+            ### Ki-Downloader v1.0.3
 
-            **Fixes & Improvements:**
-            - Fixed `Ctrl+V` clipboard capture across both Persian (`FA`) and English (`EN`) keyboard layouts + added global paste handler
-            - Automatic URL probing & metadata extraction (`filename`, `type/category`, `size`, `resume support`) when typing or pasting a link manually
-            - Improved Light Mode Liquid Glass contrast, frosted depth, and active sliding pill visibility
-            - Redesigned unified Apple Liquid Glass top window control bar & glossy traffic-light controls (including maximize/restore state)
-            - Centered search orb & icon alignment pixel-perfectly
-
-            **Recommended Install (No SmartScreen / Unknown Publisher warning):**
+            **Recommended Install (Works cleanly even with Windows 11 Smart App Control / SmartScreen ON):**
             ```powershell
             irm https://raw.githubusercontent.com/farzadzx1234/Ki-Downloader/main/install.ps1 | iex
             ```
-            Or download **`Ki-Downloader-Portable.zip`**, extract it, and run **`Install.cmd`** (or launch `Ki-Downloader.exe` directly).
+            Or download **`Ki-Downloader-Portable.zip`**, extract it, and run **`Install.cmd`** (or launch **`Ki-Downloader.cmd`** directly).
+
+            - Automatic Smart App Control-safe launch using signed PowerShell + Microsoft WebView2 runtime when unsigned `.exe` binaries are restricted by Windows policy
+            - Fixed `Ctrl+V` clipboard capture across both Persian (`FA`) and English (`EN`) layouts
+            - Automatic URL probing & metadata extraction (`filename`, `type/category`, `size`, `resume support`)
+            - Crisp Light Mode Liquid Glass, unified Apple window controls, and centered search orb
           files: |
             dist/Ki-Downloader-Portable.zip
             dist/Ki-Downloader-Extension.zip

@@ -6,7 +6,15 @@ $zipPath = Join-Path $env:TEMP "Ki-Downloader-Portable.zip"
 $url = "https://github.com/farzadzx1234/Ki-Downloader/releases/latest/download/Ki-Downloader-Portable.zip"
 
 Get-Process -Name "Ki-Downloader" -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Sleep -Milliseconds 300
+$pidFile = Join-Path $env:APPDATA "Ki-Downloader\host.pid"
+if (Test-Path $pidFile) {
+    $oldPid = (Get-Content $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1) -as [int]
+    if ($oldPid -and $oldPid -ne $PID) {
+        Stop-Process -Id $oldPid -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+}
+Start-Sleep -Milliseconds 350
 
 Write-Host "Downloading latest release package..."
 Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
@@ -21,22 +29,46 @@ Get-ChildItem -Path $installDir -Recurse -File | ForEach-Object {
 }
 
 $exePath = Join-Path $installDir "Ki-Downloader.exe"
+$psLauncher = Join-Path $installDir "Ki-Downloader.ps1"
 $icoPath = Join-Path $installDir "assets\ki-downloader.ico"
+$psExe = Join-Path $env:WINDIR "System32\WindowsPowerShell\v1.0\powershell.exe"
+
+$sacState = $null
+try {
+    $sacState = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy" -ErrorAction SilentlyContinue).VerifiedAndReputablePolicyState
+} catch {}
+
+$usePsHost = ($sacState -eq 1 -or $sacState -eq 2) -or (-not (Test-Path $exePath))
+if (-not $usePsHost) {
+    try {
+        Start-Process -FilePath $exePath -WorkingDirectory $installDir -ErrorAction Stop | Out-Null
+    } catch {
+        $usePsHost = $true
+    }
+}
 
 $wsh = New-Object -ComObject WScript.Shell
-$startMenu = Join-Path ([Environment]::GetFolderPath("Programs")) "Ki-Downloader.lnk"
-$s1 = $wsh.CreateShortcut($startMenu)
-$s1.TargetPath = $exePath
-$s1.WorkingDirectory = $installDir
-if (Test-Path $icoPath) { $s1.IconLocation = $icoPath }
-$s1.Save()
+$shortcutPaths = @(
+    (Join-Path ([Environment]::GetFolderPath("Programs")) "Ki-Downloader.lnk"),
+    (Join-Path ([Environment]::GetFolderPath("DesktopDirectory")) "Ki-Downloader.lnk")
+)
 
-$desktop = Join-Path ([Environment]::GetFolderPath("DesktopDirectory")) "Ki-Downloader.lnk"
-$s2 = $wsh.CreateShortcut($desktop)
-$s2.TargetPath = $exePath
-$s2.WorkingDirectory = $installDir
-if (Test-Path $icoPath) { $s2.IconLocation = $icoPath }
-$s2.Save()
+foreach ($lnkPath in $shortcutPaths) {
+    $sc = $wsh.CreateShortcut($lnkPath)
+    if ($usePsHost) {
+        $sc.TargetPath = $psExe
+        $sc.Arguments = "-STA -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$psLauncher`""
+    } else {
+        $sc.TargetPath = $exePath
+        $sc.Arguments = ""
+    }
+    $sc.WorkingDirectory = $installDir
+    if (Test-Path $icoPath) { $sc.IconLocation = $icoPath }
+    $sc.Save()
+}
+
+if ($usePsHost) {
+    Start-Process -FilePath $psExe -ArgumentList @("-STA", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", "`"$psLauncher`"") -WorkingDirectory $installDir
+}
 
 Write-Host "Ki-Downloader installed to $installDir" -ForegroundColor Green
-Start-Process -FilePath $exePath

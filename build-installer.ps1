@@ -39,14 +39,15 @@ Compress-Archive -Path "$root\browser-extension\*" -DestinationPath $extZip -For
 
 $stage = "$root\lib\stage"
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
-New-Item -ItemType Directory -Force -Path "$stage\ui\fonts","$stage\assets","$stage\browser-extension\icons" | Out-Null
-Copy-Item "$root\Ki-Downloader.exe","$root\Microsoft.Web.WebView2.Core.dll","$root\Microsoft.Web.WebView2.WinForms.dll","$root\WebView2Loader.dll" "$stage\" -Force
+New-Item -ItemType Directory -Force -Path "$stage\src","$stage\ui\fonts","$stage\assets","$stage\browser-extension\icons" | Out-Null
+Copy-Item "$root\Ki-Downloader.exe","$root\Ki-Downloader.ps1","$root\Microsoft.Web.WebView2.Core.dll","$root\Microsoft.Web.WebView2.WinForms.dll","$root\WebView2Loader.dll" "$stage\" -Force
+Copy-Item "$root\src\*.cs" "$stage\src\" -Force
 Copy-Item "$root\ui\*" "$stage\ui\" -Force -Exclude "fonts"
 Copy-Item "$root\ui\fonts\*" "$stage\ui\fonts\" -Force
 Copy-Item "$root\assets\*" "$stage\assets\" -Force
 Copy-Item "$root\browser-extension\*" "$stage\browser-extension\" -Force -Exclude "icons"
 Copy-Item "$root\browser-extension\icons\*" "$stage\browser-extension\icons\" -Force
-Copy-Item "$root\installer\Install.cmd","$root\installer\Uninstall.cmd" "$stage\" -Force
+Copy-Item "$root\installer\Install.cmd","$root\installer\Uninstall.cmd","$root\installer\install-local.ps1","$root\installer\Ki-Downloader.cmd" "$stage\" -Force
 
 $portableZip = "$root\dist\Ki-Downloader-Portable.zip"
 if (Test-Path $portableZip) { Remove-Item $portableZip -Force }

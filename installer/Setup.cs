@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -135,24 +136,33 @@ namespace KiDownloaderSetup
                 }
 
                 string exePath = Path.Combine(_installDir, "Ki-Downloader.exe");
+                string psPath = Path.Combine(_installDir, "Ki-Downloader.ps1");
+                string psExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
                 string icoPath = Path.Combine(_installDir, "assets", "ki-downloader.ico");
 
+                bool usePsHost = File.Exists(psPath) && IsSmartAppControlEnforced();
+                string shortcutTarget = usePsHost ? psExe : exePath;
+                string shortcutArgs = usePsHost ? ("-STA -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + psPath + "\"") : "";
+
+                // Copy self as uninstaller
                 string uninstallExe = Path.Combine(_installDir, "Uninstall.exe");
                 try { File.Copy(Application.ExecutablePath, uninstallExe, true); } catch { }
 
+                // Start Menu shortcut
                 string startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Ki-Downloader.lnk");
-                CreateShortcut(startMenu, exePath, _installDir, icoPath);
+                CreateShortcut(startMenu, shortcutTarget, shortcutArgs, _installDir, icoPath);
 
                 if (_desktopCheck.Checked)
                 {
                     string desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Ki-Downloader.lnk");
-                    CreateShortcut(desktop, exePath, _installDir, icoPath);
+                    CreateShortcut(desktop, shortcutTarget, shortcutArgs, _installDir, icoPath);
                 }
 
+                // Register Uninstall entry
                 using (RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Ki-Downloader"))
                 {
                     key.SetValue("DisplayName", "Ki-Downloader");
-                    key.SetValue("DisplayVersion", "1.0.0");
+                    key.SetValue("DisplayVersion", "1.0.3");
                     key.SetValue("Publisher", "Farzad Alizadeh");
                     key.SetValue("DisplayIcon", icoPath);
                     key.SetValue("InstallLocation", _installDir);
@@ -163,9 +173,9 @@ namespace KiDownloaderSetup
 
                 _progress.Value = 100;
                 _statusLabel.Text = "Installed successfully!";
-                if (_launchCheck.Checked && File.Exists(exePath))
+                if (_launchCheck.Checked)
                 {
-                    Process.Start(exePath);
+                    LaunchInstalledApp(exePath, psExe, psPath, _installDir, usePsHost);
                 }
                 Close();
             }
@@ -176,12 +186,56 @@ namespace KiDownloaderSetup
             }
         }
 
-        private static void CreateShortcut(string lnkPath, string targetPath, string workDir, string iconPath)
+        private static bool IsSmartAppControlEnforced()
+        {
+            try
+            {
+                using (RegistryKey ci = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\CI\Policy"))
+                {
+                    if (ci != null)
+                    {
+                        object v = ci.GetValue("VerifiedAndReputablePolicyState");
+                        if (v != null)
+                        {
+                            int s = Convert.ToInt32(v);
+                            if (s == 1 || s == 2) return true;
+                        }
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private static void LaunchInstalledApp(string exePath, string psExe, string psPath, string workDir, bool preferPsHost)
+        {
+            if (!preferPsHost && File.Exists(exePath))
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo(exePath) { WorkingDirectory = workDir });
+                    return;
+                }
+                catch { }
+            }
+            if (File.Exists(psPath))
+            {
+                Process.Start(new ProcessStartInfo(psExe, "-STA -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + psPath + "\"")
+                {
+                    WorkingDirectory = workDir,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+            }
+        }
+
+        private static void CreateShortcut(string lnkPath, string targetPath, string args, string workDir, string iconPath)
         {
             Type shellType = Type.GetTypeFromProgID("WScript.Shell");
             dynamic shell = Activator.CreateInstance(shellType);
             dynamic shortcut = shell.CreateShortcut(lnkPath);
             shortcut.TargetPath = targetPath;
+            if (!string.IsNullOrEmpty(args)) shortcut.Arguments = args;
             shortcut.WorkingDirectory = workDir;
             if (File.Exists(iconPath)) shortcut.IconLocation = iconPath;
             shortcut.Save();

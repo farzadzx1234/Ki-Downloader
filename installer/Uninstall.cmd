@@ -1,10 +1,4 @@
 @echo off
 title Uninstall Ki-Downloader
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$dst = Join-Path $env:LOCALAPPDATA 'Programs\Ki-Downloader'; " ^
-  "Get-Process -Name 'Ki-Downloader' -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 300; " ^
-  "Remove-Item (Join-Path ([Environment]::GetFolderPath('Programs')) 'Ki-Downloader.lnk') -Force -ErrorAction SilentlyContinue; " ^
-  "Remove-Item (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Ki-Downloader.lnk') -Force -ErrorAction SilentlyContinue; " ^
-  "Remove-Item $dst -Recurse -Force -ErrorAction SilentlyContinue; " ^
-  "Write-Host 'Ki-Downloader uninstalled.' -ForegroundColor Yellow"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$dst = Join-Path $env:LOCALAPPDATA 'Programs\Ki-Downloader'; Get-Process -Name 'Ki-Downloader' -ErrorAction SilentlyContinue | Stop-Process -Force; $pf = Join-Path $env:APPDATA 'Ki-Downloader\host.pid'; if (Test-Path $pf) { $p = (Get-Content $pf -ErrorAction SilentlyContinue | Select-Object -First 1) -as [int]; if ($p -and $p -ne $PID) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }; Remove-Item $pf -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 350; Remove-Item (Join-Path ([Environment]::GetFolderPath('Programs')) 'Ki-Downloader.lnk') -Force -ErrorAction SilentlyContinue; Remove-Item (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Ki-Downloader.lnk') -Force -ErrorAction SilentlyContinue; Remove-Item $dst -Recurse -Force -ErrorAction SilentlyContinue; Write-Host 'Ki-Downloader uninstalled.' -ForegroundColor Yellow"
 pause

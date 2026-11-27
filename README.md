@@ -24,7 +24,9 @@ This downloads the latest package, unblocks files automatically, installs to `%L
 
 ### Option 2: Portable ZIP (Recommended Manual Download)
 1. Download **`Ki-Downloader-Portable.zip`** from the [Releases](../../releases) page.
-2. Extract the ZIP folder and either run **`Install.cmd`** (creates shortcuts) or open **`Ki-Downloader.exe`** directly.
+2. Extract the ZIP folder and run **`Install.cmd`** (creates Start Menu & Desktop shortcuts) or launch **`Ki-Downloader.cmd`** / **`Ki-Downloader.exe`** directly.
+
+> **Note for Windows 11 Smart App Control users:** If Windows blocks unsigned `.exe` binaries (`Setup.exe` / `Ki-Downloader.exe`), use **Option 1** or **`Install.cmd`** / **`Ki-Downloader.cmd`** — they automatically run using Microsoft-signed PowerShell and WebView2 without needing a paid EV code-signing certificate.
 
 ### Option 3: Standalone Browser Extension (Chrome / Edge)
 1. Download **`Ki-Downloader-Extension.zip`** from [Releases](../../releases) (or open the `browser-extension` folder from Settings).

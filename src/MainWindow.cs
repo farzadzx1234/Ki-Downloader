@@ -81,6 +81,7 @@ namespace KiDownloader
 
         private readonly DownloadEngine _engine;
         private readonly IpcServer _ipc;
+        private readonly string _baseDir;
         private readonly string _uiDir;
         private readonly string _dataDir;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 32 * 1024 * 1024 };
@@ -109,6 +110,7 @@ namespace KiDownloader
 
         public MainForm(string baseDir)
         {
+            _baseDir = baseDir;
             _dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Ki-Downloader");
             _uiDir = Path.Combine(baseDir, "ui");
             string assetsDir = Path.Combine(baseDir, "assets");
@@ -314,6 +316,7 @@ namespace KiDownloader
             Controls.Add(_webView);
 
             string userData = Path.Combine(_dataDir, "WebView2Cache");
+            try { CoreWebView2Environment.SetLoaderDllFolderPath(_baseDir); } catch { }
             CoreWebView2Environment env = await CoreWebView2Environment.CreateAsync(null, userData);
             await _webView.EnsureCoreWebView2Async(env);
 
@@ -593,7 +596,7 @@ namespace KiDownloader
 
                     case "open_ext_folder":
                         {
-                            string extDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "browser-extension");
+                            string extDir = Path.Combine(_baseDir, "browser-extension");
                             if (Directory.Exists(extDir)) Process.Start("explorer.exe", "\"" + extDir + "\"");
                         }
                         break;

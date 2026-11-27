@@ -9,6 +9,10 @@ using System.Web.Script.Serialization;
 
 namespace KiDownloader
 {
+    /// <summary>
+    /// Local loopback HTTP IPC server (127.0.0.1:45780) enabling Chrome/Edge browser extension
+    /// integration and external CLI link handoff into the running Ki-Downloader instance.
+    /// </summary>
     public sealed class IpcServer : IDisposable
     {
         private HttpListener _listener;
@@ -37,7 +41,10 @@ namespace KiDownloader
                 _listener.Start();
                 Task.Run(delegate { ListenLoop(_cts.Token); });
             }
-            catch { }
+            catch
+            {
+                // Port may be busy if another instance is open; fail silently without crashing app
+            }
         }
 
         private async Task ListenLoop(CancellationToken ct)
@@ -74,7 +81,7 @@ namespace KiDownloader
                 string path = (ctx.Request.Url.AbsolutePath ?? "/").ToLowerInvariant();
                 if (path == "/api/ping")
                 {
-                    WriteJson(ctx.Response, 200, new { ok = true, app = "Ki-Downloader", version = "1.0.0" });
+                    WriteJson(ctx.Response, 200, new { ok = true, app = "Ki-Downloader", version = DownloadEngine.AppVersion });
                     return;
                 }
 

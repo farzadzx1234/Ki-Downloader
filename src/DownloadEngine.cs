@@ -14,6 +14,7 @@ namespace KiDownloader
 {
     public class DownloadEngine : IDisposable
     {
+        public const string AppVersion = "1.0.6";
         private readonly string _dataDir;
         private readonly string _statePath;
         private readonly object _stateLock = new object();
@@ -202,27 +203,41 @@ namespace KiDownloader
                     }
                 }
 
-                // Attempt 4: Anti-hotlink Referer fallback (use host origin as Referer if none supplied)
+                // Attempt 4: Anti-hotlink Referer fallback (origin + root domain if subdomain)
                 if ((rangeRes.StatusCode == 403 || headRes.StatusCode == 403) && string.IsNullOrWhiteSpace(referer))
                 {
-                    string originRef = uri.GetLeftPart(UriPartial.Authority) + "/";
-                    ProbeResult refRangeRes = await ProbeWithMethodAsync(url, "GET", true, originRef, cookies, userAgent, ct, trackItemId).ConfigureAwait(false);
-                    if (ct.IsCancellationRequested) return res;
-                    if (refRangeRes.Success)
+                    List<string> candidateRefs = new List<string> { uri.GetLeftPart(UriPartial.Authority) + "/" };
+                    string[] hostParts = uri.Host.Split('.');
+                    if (hostParts.Length > 2)
                     {
-                        refRangeRes.EffectiveReferer = originRef;
-                        return refRangeRes;
+                        string rootHost = string.Join(".", hostParts, hostParts.Length - 2, 2);
+                        candidateRefs.Add(uri.Scheme + "://" + rootHost + "/");
                     }
-                    ProbeResult refPlainRes = await ProbeWithMethodAsync(url, "GET", false, originRef, cookies, userAgent, ct, trackItemId).ConfigureAwait(false);
-                    if (ct.IsCancellationRequested) return res;
-                    if (refPlainRes.Success)
+                    foreach (string candRef in candidateRefs)
                     {
-                        refPlainRes.EffectiveReferer = originRef;
-                        return refPlainRes;
+                        ProbeResult refRangeRes = await ProbeWithMethodAsync(url, "GET", true, candRef, cookies, userAgent, ct, trackItemId).ConfigureAwait(false);
+                        if (ct.IsCancellationRequested) return res;
+                        if (refRangeRes.Success)
+                        {
+                            refRangeRes.EffectiveReferer = candRef;
+                            return refRangeRes;
+                        }
+                        ProbeResult refPlainRes = await ProbeWithMethodAsync(url, "GET", false, candRef, cookies, userAgent, ct, trackItemId).ConfigureAwait(false);
+                        if (ct.IsCancellationRequested) return res;
+                        if (refPlainRes.Success)
+                        {
+                            refPlainRes.EffectiveReferer = candRef;
+                            return refPlainRes;
+                        }
                     }
                 }
 
-                return headRes.Success ? headRes : rangeRes;
+                ProbeResult finalRes = headRes.Success ? headRes : rangeRes;
+                if (!finalRes.Success && finalRes.StatusCode == 403)
+                {
+                    finalRes.Error = "HTTP 403: Forbidden (بررسی کنید پروکسی/VPN برنامه با مرورگر هم‌IP باشد یا لینک منقضی نشده باشد)";
+                }
+                return finalRes;
             }
             catch (Exception ex)
             {
@@ -1544,6 +1559,7 @@ namespace KiDownloader
             {
                 var payload = new
                 {
+                    version = AppVersion,
                     downloads = Downloads,
                     settings = Settings,
                     queueRunning = _queueRunning,

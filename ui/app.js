@@ -63,6 +63,7 @@
       openExtFolder: "پوشه افزونه",
       reduceMotionLabel: "کاهش انیمیشن",
       reduceTransLabel: "کاهش شفافیت شیشه",
+      appVersionLabel: "نسخه برنامه",
       proxyProfilesLabel: "پروفایل‌های پروکسی ذخیره شده",
       addProxyTitle: "افزودن پروکسی جدید",
       proxyNamePh: "نام (مثلاً v2rayN)",
@@ -155,6 +156,7 @@
       openExtFolder: "Open Folder",
       reduceMotionLabel: "Reduce Motion",
       reduceTransLabel: "Reduce Glass Transparency",
+      appVersionLabel: "App Version",
       proxyProfilesLabel: "Saved Proxy Profiles",
       addProxyTitle: "Add New Proxy",
       proxyNamePh: "Profile Name (e.g. v2rayN)",
@@ -895,6 +897,8 @@
     document.getElementById("setTray").checked = !!s.MinimizeToTray;
     document.getElementById("setReduceMotion").checked = !!s.ReduceMotion;
     document.getElementById("setReduceTrans").checked = !!s.ReduceTransparency;
+    const verEl = document.getElementById("appVersionValue");
+    if (verEl) verEl.textContent = "v" + (appState.version || "1.0.6");
 
     document.getElementById("setAutoResumeNet").checked = !!s.AutoResumeOnReconnect;
     document.getElementById("dohEnabled").checked = !!s.Doh.Enabled;

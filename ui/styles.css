@@ -43,13 +43,14 @@
 
 :root,
 html[data-theme="light"] {
-  --bg: #ECF0F6;
-  --surface: rgba(255, 255, 255, 0.88);
-  --surface-variant: #FFFFFF;
-  --outline: rgba(15, 23, 42, 0.11);
+  color-scheme: light;
+  --bg: #EEF2F7;
+  --surface: rgba(255, 255, 255, 0.90);
+  --surface-variant: #E7ECF4;
+  --outline: rgba(15, 23, 42, 0.13);
   --text-primary: #0B0D12;
-  --text-secondary: #5C6270;
-  --text-tertiary: #848B99;
+  --text-secondary: #525866;
+  --text-tertiary: #7D8594;
 
   --accent: #007AFF;
   --accent-hover: #0066D6;
@@ -57,15 +58,23 @@ html[data-theme="light"] {
   --amber: #FF9500;
   --red: #FF3B30;
 
-  --glass-tint: rgba(232, 238, 248, 0.78);
-  --glass-sheet-tint: rgba(247, 249, 253, 0.88);
+  --glass-tint: rgba(232, 238, 248, 0.80);
+  --glass-sheet-tint: rgba(246, 248, 252, 0.92);
   --glass-pill-active: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 247, 252, 0.94) 100%);
-  --pill-active-edge: rgba(15, 23, 42, 0.09);
-  --pill-active-shadow: 0 3px 10px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255, 255, 255, 1);
-  --glass-edge: rgba(15, 23, 42, 0.14);
+  --pill-active-edge: rgba(15, 23, 42, 0.10);
+  --pill-active-shadow: 0 3px 10px rgba(15, 23, 42, 0.11), inset 0 1px 0 rgba(255, 255, 255, 1);
+  --glass-edge: rgba(15, 23, 42, 0.15);
   --glass-rim-top: rgba(255, 255, 255, 0.98);
-  --glass-rim-bottom: rgba(15, 23, 42, 0.07);
+  --glass-rim-bottom: rgba(15, 23, 42, 0.08);
   --glass-shadow: 0 12px 32px rgba(15, 23, 42, 0.11), 0 2px 8px rgba(15, 23, 42, 0.06);
+
+  --seg-track: rgba(118, 128, 148, 0.18);
+  --seg-track-edge: rgba(15, 23, 42, 0.09);
+  --seg-thumb: #FFFFFF;
+  --seg-thumb-shadow: 0 2px 8px rgba(15, 23, 42, 0.14), 0 0.5px 1px rgba(15, 23, 42, 0.08);
+  --input-bg: #FFFFFF;
+  --input-edge: rgba(15, 23, 42, 0.17);
+  --switch-off: rgba(120, 128, 142, 0.30);
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
@@ -74,6 +83,7 @@ html[data-theme="light"] {
 
 @media (prefers-color-scheme: dark) {
   html[data-theme="auto"] {
+    color-scheme: dark;
     --bg: #000000;
     --surface: #0D0D0F;
     --surface-variant: #1C1C1E;
@@ -87,7 +97,7 @@ html[data-theme="light"] {
     --amber: #FF9F0A;
     --red: #FF453A;
     --glass-tint: rgba(18, 18, 20, 0.56);
-    --glass-sheet-tint: rgba(22, 22, 24, 0.84);
+    --glass-sheet-tint: rgba(22, 22, 24, 0.86);
     --glass-pill-active: rgba(255, 255, 255, 0.14);
     --pill-active-edge: rgba(255, 255, 255, 0.12);
     --pill-active-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.24), 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -95,10 +105,18 @@ html[data-theme="light"] {
     --glass-rim-top: rgba(255, 255, 255, 0.26);
     --glass-rim-bottom: rgba(255, 255, 255, 0.05);
     --glass-shadow: 0 18px 48px rgba(0, 0, 0, 0.58), 0 2px 12px rgba(0, 0, 0, 0.36);
+    --seg-track: rgba(255, 255, 255, 0.07);
+    --seg-track-edge: rgba(255, 255, 255, 0.09);
+    --seg-thumb: rgba(255, 255, 255, 0.16);
+    --seg-thumb-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35);
+    --input-bg: #141417;
+    --input-edge: #343439;
+    --switch-off: #3A3A3C;
   }
 }
 
 html[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #000000;
   --surface: #0D0D0F;
   --surface-variant: #1C1C1E;
@@ -112,7 +130,7 @@ html[data-theme="dark"] {
   --amber: #FF9F0A;
   --red: #FF453A;
   --glass-tint: rgba(18, 18, 20, 0.56);
-  --glass-sheet-tint: rgba(22, 22, 24, 0.84);
+  --glass-sheet-tint: rgba(22, 22, 24, 0.86);
   --glass-pill-active: rgba(255, 255, 255, 0.14);
   --pill-active-edge: rgba(255, 255, 255, 0.12);
   --pill-active-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.24), 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -120,6 +138,13 @@ html[data-theme="dark"] {
   --glass-rim-top: rgba(255, 255, 255, 0.26);
   --glass-rim-bottom: rgba(255, 255, 255, 0.05);
   --glass-shadow: 0 18px 48px rgba(0, 0, 0, 0.58), 0 2px 12px rgba(0, 0, 0, 0.36);
+  --seg-track: rgba(255, 255, 255, 0.07);
+  --seg-track-edge: rgba(255, 255, 255, 0.09);
+  --seg-thumb: rgba(255, 255, 255, 0.16);
+  --seg-thumb-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.22), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --input-bg: #141417;
+  --input-edge: #343439;
+  --switch-off: #3A3A3C;
 }
 
 .reduce-transparency {
@@ -206,7 +231,7 @@ html, body {
   z-index: 30;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   pointer-events: none;
 }
 
@@ -225,81 +250,59 @@ html, body {
   gap: 8px;
   pointer-events: auto;
 }
+.top-bar-leading { margin-inline-end: auto; }
 
-/* Unified Apple Liquid Glass Window Controls + Brand Capsule */
-.window-brand-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  height: 38px;
-  padding: 0 12px;
-  border-radius: 999px;
-}
-
-.tl-cluster {
+/* Brand Pill */
+.brand-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 4px;
+  height: 38px;
+  padding: 0 14px 0 9px;
   border-radius: 999px;
 }
+html[dir="rtl"] .brand-pill { padding: 0 9px 0 14px; }
+.mini-logo { width: 21px; height: 21px; display: block; border-radius: 6px; }
+.brand-name { font-size: 13.5px; font-weight: 600; letter-spacing: -0.2px; }
 
-.tl-btn {
-  width: 13.5px;
-  height: 13.5px;
-  border-radius: 50%;
-  border: none;
+/* Windows-style Controls blended with iPhone Liquid Glass (always anchored top-right) */
+.win-controls {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 3px;
+  border-radius: 999px;
+}
+html[dir="rtl"] .win-controls { order: -1; }
+.win-btn {
+  width: 34px;
+  height: 30px;
   padding: 0;
   line-height: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: rgba(20, 12, 8, 0.72);
-  transition: transform 160ms var(--ease-out), filter 160ms var(--ease-out);
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out), box-shadow 150ms var(--ease-out), transform 120ms var(--ease-out);
 }
-.tl-btn:hover { transform: scale(1.14); filter: brightness(1.06); }
-.tl-btn:active { transform: scale(0.92); }
-.tl-btn svg {
-  width: 8px;
-  height: 8px;
-  display: block;
-  opacity: 0;
-  transform: scale(0.8);
-  transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
+.win-btn svg { width: 15px; height: 15px; display: block; flex-shrink: 0; }
+.win-btn:hover { background: var(--glass-pill-active); box-shadow: var(--pill-active-shadow); }
+.win-close:hover {
+  background: rgba(255, 59, 48, 0.90);
+  color: #FFFFFF;
+  box-shadow: 0 3px 12px rgba(255, 59, 48, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
-.tl-cluster:hover .tl-btn svg { opacity: 1; transform: scale(1); }
-
-.tl-close {
-  background: linear-gradient(180deg, #FF7068 0%, #EE4D44 100%);
-  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.48), 0 0 0 0.5px rgba(0, 0, 0, 0.16);
-}
-.tl-min {
-  background: linear-gradient(180deg, #FFCF56 0%, #F2A81D 100%);
-  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.52), 0 0 0 0.5px rgba(0, 0, 0, 0.14);
-}
-.tl-max {
-  background: linear-gradient(180deg, #3BD758 0%, #24B23D 100%);
-  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.45), 0 0 0 0.5px rgba(0, 0, 0, 0.16);
-}
-.tl-max .icon-restore { display: none; }
-.tl-max.maximized .icon-expand { display: none; }
-.tl-max.maximized .icon-restore { display: block; }
-
-.tl-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--outline);
-  opacity: 0.9;
-}
-
-.brand-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.mini-logo { width: 21px; height: 21px; display: block; border-radius: 6px; }
-.brand-name { font-size: 13.5px; font-weight: 600; letter-spacing: -0.2px; }
+.win-max .icon-restore { display: none; }
+.win-max.maximized .icon-expand { display: none; }
+.win-max.maximized .icon-restore { display: block; }
 
 .scrolled-title {
   font-size: 15.5px;
@@ -785,14 +788,22 @@ html[dir="rtl"] .search-orb.expanded {
   width: 100%;
   padding: 9px 12px;
   border-radius: 12px;
-  border: 1px solid var(--outline);
-  background: var(--surface);
+  border: 1px solid var(--input-edge);
+  background: var(--input-bg);
   color: var(--text-primary);
   font-family: inherit;
   font-size: 13.5px;
   outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
-.ios-input:focus, .ios-textarea:focus { border-color: var(--accent); }
+select.ios-input {
+  cursor: pointer;
+}
+select.ios-input option {
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+.ios-input:focus, .ios-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15); }
 
 .secondary-pill-btn {
   height: 36px;
@@ -896,7 +907,7 @@ html[dir="rtl"] .search-orb.expanded {
   position: absolute;
   inset: 0;
   border-radius: 99px;
-  background: var(--outline);
+  background: var(--switch-off);
   cursor: pointer;
   transition: background-color 200ms var(--ease-out);
 }
@@ -920,12 +931,12 @@ html[dir="rtl"] .search-orb.expanded {
   gap: 4px;
   padding: 4px;
   border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--outline);
+  background: var(--seg-track);
+  border: 1px solid var(--seg-track-edge);
 }
 .s-tab {
   flex: 1;
-  height: 32px;
+  height: 34px;
   border: none;
   border-radius: 999px;
   background: transparent;
@@ -934,8 +945,15 @@ html[dir="rtl"] .search-orb.expanded {
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
+  transition: background-color 180ms var(--ease-out), color 180ms var(--ease-out), box-shadow 180ms var(--ease-out);
 }
-.s-tab.active { background: var(--surface-variant); color: var(--text-primary); font-weight: 600; }
+.s-tab:hover { color: var(--text-primary); }
+.s-tab.active {
+  background: var(--seg-thumb);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: var(--seg-thumb-shadow);
+}
 .stab-pane { display: flex; flex-direction: column; gap: 11px; }
 
 /* Saved Proxy Profiles */

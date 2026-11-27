@@ -90,7 +90,9 @@
       clipboardDetected: "لینک دانلود در کلیپ‌بورد",
       downloadNow: "دانلود",
       resumable: "قابل ادامه",
-      singleStream: "تک‌استریم"
+      singleStream: "تک‌استریم",
+      presetSystem: "پروکسی سیستم (Windows)",
+      presetDirect: "اتصال مستقیم (بدون پروکسی)"
     },
     en: {
       pageTitle: "Downloads",
@@ -180,7 +182,9 @@
       clipboardDetected: "Download link in clipboard",
       downloadNow: "Download",
       resumable: "Resumable",
-      singleStream: "Single Stream"
+      singleStream: "Single Stream",
+      presetSystem: "System Proxy (Windows)",
+      presetDirect: "Direct (No Proxy)"
     }
   };
 
@@ -561,9 +565,20 @@
         const item = (appState.downloads || []).find((x) => x.Id === id);
         if (!item) return;
         if (act === "toggle") {
-          if (item.Status === 4) sendHost("open_file", { path: item.FinalFilePath });
-          else if (item.Status === 2 || item.Status === 1 || item.Status === 0) sendHost("pause", { id });
-          else sendHost("resume", { id });
+          if (item.Status === 4) {
+            sendHost("open_file", { path: item.FinalFilePath });
+          } else if (item.Status === 2 || item.Status === 1 || item.Status === 0 || item.Status === 7) {
+            item.Status = 3;
+            item.SpeedBps = 0;
+            item.EtaSeconds = 0;
+            updateDownloadRow(row, item);
+            renderMiniMonitor();
+            sendHost("pause", { id });
+          } else {
+            item.Status = 0;
+            updateDownloadRow(row, item);
+            sendHost("resume", { id });
+          }
         } else if (act === "inspect") {
           inspectorId = id; openSheet("inspectorSheet"); renderInspector();
         } else if (act === "folder") {
@@ -608,12 +623,16 @@
     row.querySelector(".dl-sub").textContent = parts.join(" · ");
 
     const tBtn = row.querySelector('[data-act="toggle"]');
-    if (d.Status === 4) {
-      tBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
-    } else if (d.Status === 2 || d.Status === 1 || d.Status === 0) {
-      tBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5" width="3.5" height="14" rx="1"/><rect x="13.5" y="5" width="3.5" height="14" rx="1"/></svg>`;
-    } else {
-      tBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="7 5 19 12 7 19 7 5"/></svg>`;
+    const iconMode = d.Status === 4 ? "open" : (d.Status === 2 || d.Status === 1 || d.Status === 0 || d.Status === 7) ? "pause" : "play";
+    if (tBtn.dataset.iconMode !== iconMode) {
+      tBtn.dataset.iconMode = iconMode;
+      if (iconMode === "open") {
+        tBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+      } else if (iconMode === "pause") {
+        tBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5" width="3.5" height="14" rx="1"/><rect x="13.5" y="5" width="3.5" height="14" rx="1"/></svg>`;
+      } else {
+        tBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="7 5 19 12 7 19 7 5"/></svg>`;
+      }
     }
     const fill = row.querySelector(".progress-fill");
     fill.style.width = pct.toFixed(2) + "%";

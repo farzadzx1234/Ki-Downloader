@@ -19,24 +19,25 @@ jobs:
         run: |
           ./build-installer.ps1
 
-      - name: Publish GitHub Release v1.0.3
+      - name: Publish GitHub Release v1.0.4
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.3
-          name: Ki-Downloader v1.0.3
+          tag_name: v1.0.4
+          name: Ki-Downloader v1.0.4
           body: |
-            ### Ki-Downloader v1.0.3
+            ### Ki-Downloader v1.0.4
 
-            **Recommended Install (Works cleanly even with Windows 11 Smart App Control / SmartScreen ON):**
+            **Fixes & Improvements:**
+            - Instant Pause on first click + immediate abort/close of all active HTTP requests & streams (zero background bandwidth leak after Pause)
+            - Redesigned Windows-style Minimize / Maximize / Close controls blended with Apple iPhone Liquid Glass pill aesthetics (always anchored at top-right)
+            - Fixed Light Mode Settings segmented tab selector, `<select>` dropdowns, inputs, and toggle tracks so every control has crisp visibility and contrast
+            - Includes Smart App Control-compatible launcher (`Ki-Downloader.ps1` / `Install.cmd`)
+
+            **Install (PowerShell):**
             ```powershell
             irm https://raw.githubusercontent.com/farzadzx1234/Ki-Downloader/main/install.ps1 | iex
             ```
             Or download **`Ki-Downloader-Portable.zip`**, extract it, and run **`Install.cmd`** (or launch **`Ki-Downloader.cmd`** directly).
-
-            - Automatic Smart App Control-safe launch using signed PowerShell + Microsoft WebView2 runtime when unsigned `.exe` binaries are restricted by Windows policy
-            - Fixed `Ctrl+V` clipboard capture across both Persian (`FA`) and English (`EN`) layouts
-            - Automatic URL probing & metadata extraction (`filename`, `type/category`, `size`, `resume support`)
-            - Crisp Light Mode Liquid Glass, unified Apple window controls, and centered search orb
           files: |
             dist/Ki-Downloader-Portable.zip
             dist/Ki-Downloader-Extension.zip
